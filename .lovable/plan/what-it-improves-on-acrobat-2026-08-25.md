@@ -1,17 +1,19 @@
-# AccessPDF — PDF Accessibility Remediation Workspace
+AccessPDF — PDF Accessibility Remediation Workspace
 
 A web app that does the job Acrobat Pro's accessibility tools do, but built around remediation as a team workflow: audit against a WCAG level the user chooses, fix the document structure in a real editor, and produce a signed-off, conformant PDF with an audit trail.
 
 ## What it improves on Acrobat
 
-| Acrobat pain | This app |
-| --- | --- |
-| Fixed PDF/UA + WCAG rule set | User picks target conformance: WCAG 2.2 **A**, **AA**, or **AAA** (plus PDF/UA). Only applicable rules are surfaced and required to pass. |
-| Reading Order tool is slow, desktop-only, single user | Browser-based, side-by-side page render + structure tree, drag to reorder |
-| No handoff between author, remediator, reviewer | Roles: Author uploads, Remediator fixes, Reviewer approves |
-| No batch view or progress tracking | Project library with per-document conformance score and issue burndown |
-| No compliance evidence | Exportable conformance report + immutable change log per document |
-| Autotag is opaque and unreliable | AI-assisted suggestions (alt text, heading level, table headers) the user reviews and accepts or edits — never applied silently |
+
+| Acrobat pain                                          | This app                                                                                                                                  |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Fixed PDF/UA + WCAG rule set                          | User picks target conformance: WCAG 2.2 **A**, **AA**, or **AAA** (plus PDF/UA). Only applicable rules are surfaced and required to pass. |
+| Reading Order tool is slow, desktop-only, single user | Browser-based, side-by-side page render + structure tree, drag to reorder                                                                 |
+| No handoff between author, remediator, reviewer       | Roles: Author uploads, Remediator fixes, Reviewer approves                                                                                |
+| No batch view or progress tracking                    | Project library with per-document conformance score and issue burndown                                                                    |
+| No compliance evidence                                | Exportable conformance report + immutable change log per document                                                                         |
+| Autotag is opaque and unreliable                      | AI-assisted suggestions (alt text, heading level, table headers) the user reviews and accepts or edits — never applied silently           |
+
 
 ## Conformance levels
 
@@ -28,9 +30,9 @@ Each rule shows its WCAG success criterion number so a reviewer can trace it.
 1. **Dashboard** — projects, documents, status (Uploaded / In remediation / In review / Approved), conformance score, target level.
 2. **Upload & audit** — drop a PDF, pick target level, run the checker, land on a prioritized issue list grouped by severity and criterion.
 3. **Remediation editor** — three panes:
-   - Page canvas (rendered PDF page, tagged regions outlined, click a region to select it)
-   - Structure tree (headings, paragraphs, lists, tables, figures, artifacts — drag to reorder, retag, promote/demote heading level)
-   - Issue inspector (the selected issue, why it fails, which criterion, the fix control: alt-text field with AI suggestion, heading level, table header/scope grid, language, artifact toggle, contrast readout)
+  - Page canvas (rendered PDF page, tagged regions outlined, click a region to select it)
+  - Structure tree (headings, paragraphs, lists, tables, figures, artifacts — drag to reorder, retag, promote/demote heading level)
+  - Issue inspector (the selected issue, why it fails, which criterion, the fix control: alt-text field with AI suggestion, heading level, table header/scope grid, language, artifact toggle, contrast readout)
 4. **Metadata & document-level fixes** — title, primary language, tab order, bookmarks.
 5. **Review & sign-off** — reviewer walks remaining issues, comments, approves or sends back; approval locks a report.
 6. **Export** — download the remediated PDF plus the conformance report (HTML/PDF).
