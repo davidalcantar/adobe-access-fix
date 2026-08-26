@@ -97,6 +97,54 @@ export function PageCanvas({
     };
   }, [bytes, page]);
 
+  // Text runs power the invisible selection layer; only loaded when needed.
+  useEffect(() => {
+    if (!bytes || !textSelect) {
+      setRuns([]);
+      return;
+    }
+    let cancelled = false;
+    const copy = bytes.slice(0);
+    extractTextRuns(copy, page)
+      .then((next) => {
+        if (!cancelled) setRuns(next);
+      })
+      .catch((error) => console.error(error));
+    return () => {
+      cancelled = true;
+    };
+  }, [bytes, page, textSelect]);
+
+  /** Reads the browser selection and reports the covered runs as one region. */
+  function reportSelection() {
+    if (!textSelect || !onTextSelection) return;
+    const layer = layerRef.current;
+    const selection = window.getSelection();
+    if (!layer || !selection || selection.isCollapsed || !selection.toString().trim()) {
+      onTextSelection(null);
+      return;
+    }
+    const picked: TextRun[] = [];
+    for (const element of Array.from(layer.querySelectorAll<HTMLElement>("[data-run]"))) {
+      if (!selection.containsNode(element, true)) continue;
+      const index = Number(element.dataset.run);
+      const run = runs.find((r) => r.index === index);
+      if (run) picked.push(run);
+    }
+    if (!picked.length) {
+      onTextSelection(null);
+      return;
+    }
+    picked.sort((a, b) => a.index - b.index);
+    onTextSelection({
+      text: joinRuns(picked),
+      bbox: unionBbox(picked),
+      fontSize: Math.max(...picked.map((r) => r.fontSize)),
+      page,
+    });
+  }
+
+
   function sampleAt(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!picking || !onPickedColor) return;
     const canvas = canvasRef.current;
