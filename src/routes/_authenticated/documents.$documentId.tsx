@@ -7,7 +7,10 @@ import { AppShell } from "@/components/AppShell";
 import { ScoreDial } from "@/components/ScoreDial";
 import { LevelMeter } from "@/components/editor/LevelMeter";
 import { TagToolbar } from "@/components/editor/TagToolbar";
-import { PageCanvas } from "@/components/editor/PageCanvas";
+import { PageCanvas, type TextSelection } from "@/components/editor/PageCanvas";
+import { ShortcutHelp } from "@/components/editor/ShortcutHelp";
+import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
+
 import { StructureTree } from "@/components/editor/StructureTree";
 import { Inspector } from "@/components/editor/Inspector";
 import { IssuePanel } from "@/components/editor/IssuePanel";
