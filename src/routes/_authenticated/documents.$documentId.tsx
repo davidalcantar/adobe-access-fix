@@ -243,6 +243,7 @@ function EditorPage() {
 
   const applyPatch = useCallback(
     (id: string, patch: Partial<StructNode>, summary: string, aiAssisted = false) => {
+      snapshot();
       setNodes((current) => current.map((n) => (n.id === id ? { ...n, ...patch } : n)));
       setDirty(true);
       if (doc && user) {
@@ -258,11 +259,12 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [doc, user, queryClient, documentId],
+    [doc, user, queryClient, documentId, snapshot],
   );
 
   const moveNode = useCallback(
     (id: string, direction: -1 | 1) => {
+      snapshot();
       setNodes((current) => {
         const index = current.findIndex((n) => n.id === id);
         if (index < 0) return current;
@@ -288,13 +290,14 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [doc, user, queryClient, documentId],
+    [doc, user, queryClient, documentId, snapshot],
   );
 
   const removeNode = useCallback(
     (id: string) => {
       const node = nodes.find((n) => n.id === id);
       if (!node) return;
+      snapshot();
       setNodes((current) => current.filter((n) => n.id !== id));
       setSelectedId(null);
       setDirty(true);
