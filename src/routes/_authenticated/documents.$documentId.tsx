@@ -26,6 +26,9 @@ import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 
 import { StructureTree } from "@/components/editor/StructureTree";
 import { TagColorSettings } from "@/components/editor/TagColorSettings";
+import { PresetMenu } from "@/components/editor/PresetMenu";
+import { ReadingOrderSuggest } from "@/components/editor/ReadingOrderSuggest";
+import { usePresets, type RemediationPreset } from "@/lib/presets";
 import { useTagPalette } from "@/lib/tagColors";
 import { Inspector } from "@/components/editor/Inspector";
 import { IssuePanel } from "@/components/editor/IssuePanel";
@@ -116,6 +119,9 @@ function EditorPage() {
   const [autoSave, setAutoSave] = useState(true);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [panelTab, setPanelTab] = useState("issues");
+  // Lasso: drag a box on the page to select several elements and act on them all.
+  const [lassoMode, setLassoMode] = useState(false);
+  const [multiIds, setMultiIds] = useState<string[]>([]);
 
 
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
@@ -129,7 +135,8 @@ function EditorPage() {
   const nodesRef = useRef<StructNode[]>([]);
   const history = useRef<{ past: StructNode[][]; future: StructNode[][] }>({ past: [], future: [] });
   const [historyDepth, setHistoryDepth] = useState({ past: 0, future: 0 });
-  const { palette, setColor, reset: resetPalette } = useTagPalette();
+  const { palette, setColor, reset: resetPalette, setPalette } = useTagPalette();
+  const { presets, savePreset, removePreset } = usePresets();
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -294,6 +301,65 @@ function EditorPage() {
   );
 
 
+  /** Replaces the whole reading order (used by the suggested-order tool). */
+  const replaceOrder = useCallback(
+    (next: StructNode[], summary: string) => {
+      snapshot();
+      setNodes(next);
+      setDirty(true);
+      if (doc && user) {
+        void logEdit({
+          documentId: doc.id,
+          projectId: doc.project_id,
+          userId: user.id,
+          editType: "reading-order",
+          summary,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
+      }
+      toast.success(summary, { duration: 1600 });
+    },
+    [doc, user, queryClient, documentId, snapshot],
+  );
+
+  /** Removes every lasso-selected element in one undo step. */
+  const removeMany = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) return;
+      snapshot();
+      const set = new Set(ids);
+      setNodes((current) => current.filter((n) => !set.has(n.id)));
+      setMultiIds([]);
+      setSelectedId(null);
+      setDirty(true);
+      if (doc && user) {
+        void logEdit({
+          documentId: doc.id,
+          projectId: doc.project_id,
+          userId: user.id,
+          editType: "bulk",
+          summary: `Removed ${ids.length} elements from the structure tree`,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
+      }
+    },
+    [doc, user, queryClient, documentId, snapshot],
+  );
+
+  const applyPreset = useCallback(
+    (preset: RemediationPreset) => {
+      setPalette(preset.palette);
+      setAutoSave(preset.autoSave);
+      window.localStorage.setItem("accesspdf:autosave", preset.autoSave ? "on" : "off");
+      setShowOverlay(preset.showOverlay);
+      setHighlightMode(preset.highlightMode);
+      setDocLang(preset.language);
+      setDirty(true);
+      toast.success(`Applied the "${preset.name}" preset.`);
+      if (doc && preset.targetLevel !== doc.target_level) void changeLevel(preset.targetLevel);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc, setPalette],
+  );
+
   const moveNode = useCallback(
     (id: string, direction: -1 | 1) => {
       snapshot();
@@ -451,8 +517,24 @@ function EditorPage() {
     onRetagSelected: (type) => {
       if (selectedId) applyPatch(selectedId, { type }, `Retagged to ${type}`);
     },
+    hasMulti: multiIds.length > 1,
+    onTagMulti: (type) => {
+      applyPatches(
+        multiIds.map((id) => ({ id, patch: { type } })),
+        `Retagged ${multiIds.length} elements to ${type}`,
+      );
+      setMultiIds([]);
+    },
+    onToggleLasso: () => {
+      setLassoMode((v) => {
+        if (!v) setPending(null);
+        return !v;
+      });
+      setMultiIds([]);
+    },
     onClearPending: () => {
       setPending(null);
+      setMultiIds([]);
       window.getSelection()?.removeAllRanges();
     },
     onStepSelection: stepSelection,
@@ -468,7 +550,8 @@ function EditorPage() {
       );
     },
     onDeleteSelected: () => {
-      if (selectedId) removeNode(selectedId);
+      if (multiIds.length > 1) removeMany(multiIds);
+      else if (selectedId) removeNode(selectedId);
     },
     onStepPage: (direction) => {
       setPage((current) => Math.min(Math.max(1, current + direction), doc?.page_count ?? current));
@@ -752,6 +835,20 @@ function EditorPage() {
               </SelectContent>
             </Select>
             <TagColorSettings palette={palette} onChange={setColor} onReset={resetPalette} />
+            <PresetMenu
+              presets={presets}
+              current={{
+                targetLevel: doc.target_level,
+                language: docLang,
+                palette,
+                autoSave,
+                showOverlay,
+                highlightMode,
+              }}
+              onApply={applyPreset}
+              onSave={savePreset}
+              onRemove={removePreset}
+            />
             {!readOnly ? (
               <>
                 <div className="flex items-center gap-1">
@@ -935,6 +1032,24 @@ function EditorPage() {
                 </span>
               </Label>
             </span>
+            <span className="flex items-center gap-2">
+              <Switch
+                id="lasso-mode"
+                checked={lassoMode}
+                onCheckedChange={(v) => {
+                  setLassoMode(v);
+                  setMultiIds([]);
+                  if (v) setPending(null);
+                }}
+                disabled={readOnly}
+              />
+              <Label htmlFor="lasso-mode" className="text-xs">
+                Lasso
+                <span className="block font-normal text-muted-foreground">
+                  Drag a box to select several elements (X)
+                </span>
+              </Label>
+            </span>
             <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />
           </div>
           <TagToolbar
@@ -954,7 +1069,16 @@ function EditorPage() {
             nodes={nodes}
             pageCount={doc.page_count}
             page={page}
-            textSelect={highlightMode && !readOnly && !pickingColor}
+            textSelect={highlightMode && !lassoMode && !readOnly && !pickingColor}
+            lasso={lassoMode && !readOnly && !pickingColor}
+            multiSelectedIds={multiIds}
+            onLassoSelect={(ids, additive) => {
+              setMultiIds((current) => {
+                const next = additive ? Array.from(new Set([...current, ...ids])) : ids;
+                if (next.length === 1) setSelectedId(next[0]!);
+                return next;
+              });
+            }}
             onTextSelection={setPending}
             onPageChange={(next) => {
               setPage(next);
@@ -1034,6 +1158,18 @@ function EditorPage() {
                   }}
                   onApplyMany={(patches, summary) => applyPatches(patches, summary, true)}
                 />
+                <div className="border-t border-border pt-5">
+                  <ReadingOrderSuggest
+                    nodes={nodes}
+                    page={page}
+                    readOnly={readOnly}
+                    onApply={replaceOrder}
+                    onSelect={(node) => {
+                      setPage(node.page);
+                      setSelectedId(node.id);
+                    }}
+                  />
+                </div>
                 <div className="border-t border-border pt-5">
                   <FindReplace
                     nodes={nodes}
