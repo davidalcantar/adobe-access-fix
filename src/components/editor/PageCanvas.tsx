@@ -51,6 +51,7 @@ export function PageCanvas({
   onPickedColor,
   textSelect = false,
   onTextSelection,
+  palette = DEFAULT_TAG_PALETTE,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
