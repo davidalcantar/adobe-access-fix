@@ -109,7 +109,7 @@ export async function ensureDefaultProject(userId: string): Promise<string> {
     .order("updated_at", { ascending: false })
     .limit(1);
   if (error) throw error;
-  if (existing?.length) return existing[0].id;
+  if (existing?.[0]) return existing[0].id;
 
   const { data: created, error: createError } = await supabase
     .from("projects")
