@@ -313,8 +313,6 @@ function EditorPage() {
       const result = await exportRemediatedPdf(bytes.slice(0), {
         title: docTitle,
         language: docLang,
-        pageCount: doc.page_count,
-        hasOutline: true,
         nodes,
       });
       const blob = new Blob([result.bytes as unknown as BlobPart], { type: "application/pdf" });
