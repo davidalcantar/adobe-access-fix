@@ -72,7 +72,7 @@ import { exportRemediatedPdf } from "@/lib/pdf/export";
 import { cropNodeToDataUrl } from "@/lib/pdf/crop";
 import { buildReportHtml } from "@/lib/report";
 import { LEVELS, LEVEL_LABELS, type Level } from "@/lib/wcag";
-import { newId, type StructNode, type TagType } from "@/lib/structure";
+import { newId, TAG_GROUPS, type StructNode, type TagType } from "@/lib/structure";
 
 export const Route = createFileRoute("/_authenticated/documents/$documentId")({
   head: () => ({
@@ -1064,6 +1064,53 @@ function EditorPage() {
               window.getSelection()?.removeAllRanges();
             }}
           />
+          {multiIds.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-primary/5 px-3 py-2">
+              <p className="text-xs font-medium">{multiIds.length} elements selected</p>
+              <Select
+                onValueChange={(value) => {
+                  applyPatches(
+                    multiIds.map((id) => ({ id, patch: { type: value as TagType } })),
+                    `Retagged ${multiIds.length} elements to ${value}`,
+                  );
+                  setMultiIds([]);
+                }}
+              >
+                <SelectTrigger className="h-8 w-40" aria-label="Retag the selected elements">
+                  <SelectValue placeholder="Retag all as…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TAG_GROUPS.map((group) =>
+                    group.types.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    )),
+                  )}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  applyPatches(
+                    multiIds.map((id) => ({ id, patch: { decorative: true } })),
+                    `Marked ${multiIds.length} elements decorative`,
+                  );
+                  setMultiIds([]);
+                }}
+              >
+                Mark decorative
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => removeMany(multiIds)}>
+                Delete
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setMultiIds([])}>
+                Clear
+              </Button>
+              <p className="text-xs text-muted-foreground">Or press a tag key to retag them all.</p>
+            </div>
+          ) : null}
           <PageCanvas
             bytes={bytes}
             nodes={nodes}
