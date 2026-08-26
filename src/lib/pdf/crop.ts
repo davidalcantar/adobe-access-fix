@@ -22,7 +22,7 @@ export async function cropNodeToDataUrl(
   if (!ctx) return null;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, full.width, full.height);
-  await page.render({ canvasContext: ctx, viewport, canvas: full }).promise;
+  await page.render({ canvasContext: ctx, viewport }).promise;
 
   const [x, y, w, h] = node.bbox;
   const pad = 4;
