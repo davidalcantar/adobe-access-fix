@@ -7,7 +7,10 @@ import { AppShell } from "@/components/AppShell";
 import { ScoreDial } from "@/components/ScoreDial";
 import { LevelMeter } from "@/components/editor/LevelMeter";
 import { TagToolbar } from "@/components/editor/TagToolbar";
-import { PageCanvas } from "@/components/editor/PageCanvas";
+import { PageCanvas, type TextSelection } from "@/components/editor/PageCanvas";
+import { ShortcutHelp } from "@/components/editor/ShortcutHelp";
+import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
+
 import { StructureTree } from "@/components/editor/StructureTree";
 import { Inspector } from "@/components/editor/Inspector";
 import { IssuePanel } from "@/components/editor/IssuePanel";
@@ -47,7 +50,7 @@ import { exportRemediatedPdf } from "@/lib/pdf/export";
 import { cropNodeToDataUrl } from "@/lib/pdf/crop";
 import { buildReportHtml } from "@/lib/report";
 import { LEVELS, LEVEL_LABELS, type Level } from "@/lib/wcag";
-import type { StructNode } from "@/lib/structure";
+import { newId, type StructNode, type TagType } from "@/lib/structure";
 
 export const Route = createFileRoute("/_authenticated/documents/$documentId")({
   head: () => ({
@@ -87,6 +90,10 @@ function EditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickingColor, setPickingColor] = useState<"fg" | "bg" | null>(null);
   const [showOverlay, setShowOverlay] = useState(true);
+  const [highlightMode, setHighlightMode] = useState(true);
+  const [pending, setPending] = useState<TextSelection | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [comment, setComment] = useState("");
@@ -228,7 +235,115 @@ function EditorPage() {
     [nodes, doc, user, queryClient, documentId],
   );
 
+  /**
+   * Turns the text a remediator highlighted on the page into a tagged element,
+   * inserted at the right spot in the reading order for that page.
+   */
+  const tagPending = useCallback(
+    (type: TagType) => {
+      if (!pending || readOnly) return;
+      const node: StructNode = {
+        id: newId(),
+        type,
+        page: pending.page,
+        bbox: pending.bbox,
+        text: pending.text,
+        fontSize: pending.fontSize,
+        isLargeText: pending.fontSize >= 18 || pending.fontSize >= 14,
+      };
+      setNodes((current) => {
+        const next = [...current];
+        // Insert after the last element on the page that sits above it.
+        let insertAt = next.length;
+        const pageIndexes = next
+          .map((n, i) => ({ n, i }))
+          .filter((entry) => entry.n.page === pending.page);
+        if (pageIndexes.length) {
+          const below = pageIndexes.find((entry) => entry.n.bbox[1] < node.bbox[1]);
+          insertAt = below ? below.i : pageIndexes[pageIndexes.length - 1]!.i + 1;
+        } else {
+          const laterPage = next.findIndex((n) => n.page > pending.page);
+          insertAt = laterPage >= 0 ? laterPage : next.length;
+        }
+        next.splice(insertAt, 0, node);
+        return next;
+      });
+      setSelectedId(node.id);
+      setPending(null);
+      setDirty(true);
+      window.getSelection()?.removeAllRanges();
+      toast.success(`Tagged as ${type}`, { duration: 1200 });
+      if (doc && user) {
+        void logEdit({
+          documentId: doc.id,
+          projectId: doc.project_id,
+          userId: user.id,
+          editType: "element",
+          summary: `Tagged highlighted text as ${type}`,
+          elementRef: node.id,
+          after: node as never,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
+      }
+    },
+    [pending, readOnly, doc, user, queryClient, documentId],
+  );
+
+  const stepSelection = useCallback(
+    (direction: -1 | 1) => {
+      const list = nodes.filter((n) => n.page === page);
+      if (!list.length) return;
+      const index = list.findIndex((n) => n.id === selectedId);
+      const next = index < 0 ? (direction === 1 ? 0 : list.length - 1) : Math.min(list.length - 1, Math.max(0, index + direction));
+      setSelectedId(list[next]!.id);
+    },
+    [nodes, page, selectedId],
+  );
+
+  useEditorShortcuts({
+    enabled: !readOnly && !pickingColor,
+    hasPending: Boolean(pending),
+    hasSelection: Boolean(selectedId),
+    onTagPending: tagPending,
+    onRetagSelected: (type) => {
+      if (selectedId) applyPatch(selectedId, { type }, `Retagged to ${type}`);
+    },
+    onClearPending: () => {
+      setPending(null);
+      window.getSelection()?.removeAllRanges();
+    },
+    onStepSelection: stepSelection,
+    onMoveOrder: (direction) => {
+      if (selectedId) moveNode(selectedId, direction);
+    },
+    onToggleDecorative: () => {
+      if (!selected) return;
+      applyPatch(
+        selected.id,
+        { decorative: !selected.decorative },
+        selected.decorative ? "Marked as content" : "Marked as decorative",
+      );
+    },
+    onDeleteSelected: () => {
+      if (selectedId) removeNode(selectedId);
+    },
+    onStepPage: (direction) => {
+      setPage((current) => Math.min(Math.max(1, current + direction), doc?.page_count ?? current));
+      setSelectedId(null);
+      setPending(null);
+    },
+    onToggleOverlay: () => setShowOverlay((v) => !v),
+    onToggleHighlightMode: () => {
+      setHighlightMode((v) => !v);
+      setPending(null);
+    },
+    onToggleHelp: () => setHelpOpen((v) => !v),
+    onSave: () => {
+      if (!readOnly) void save();
+    },
+  });
+
   async function save() {
+
     if (!doc) return;
     setBusy("save");
     try {
@@ -549,20 +664,50 @@ function EditorPage() {
         </section>
 
         <section aria-label="Page preview" className="max-h-[calc(100dvh-8.5rem)] border-b border-border lg:border-b-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <span className="flex items-center gap-2">
+              <Switch
+                id="highlight-mode"
+                checked={highlightMode}
+                onCheckedChange={(v) => {
+                  setHighlightMode(v);
+                  setPending(null);
+                }}
+                disabled={readOnly}
+              />
+              <Label htmlFor="highlight-mode" className="text-xs">
+                Highlight mode
+                <span className="block font-normal text-muted-foreground">
+                  Select text on the page, then press a key to tag it (H)
+                </span>
+              </Label>
+            </span>
+            <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />
+          </div>
           <TagToolbar
             node={selected}
             readOnly={readOnly}
             onRetag={(id, type) => applyPatch(id, { type }, `Retagged to ${type}`)}
+            pendingText={pending?.text ?? null}
+            onTagPending={tagPending}
+            onClearPending={() => {
+              setPending(null);
+              window.getSelection()?.removeAllRanges();
+            }}
           />
           <PageCanvas
             bytes={bytes}
             nodes={nodes}
             pageCount={doc.page_count}
             page={page}
+            textSelect={highlightMode && !readOnly && !pickingColor}
+            onTextSelection={setPending}
             onPageChange={(next) => {
               setPage(next);
               setSelectedId(null);
+              setPending(null);
             }}
+
             selectedId={selectedId}
             onSelect={setSelectedId}
             showOverlay={showOverlay}

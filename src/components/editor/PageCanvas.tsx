@@ -2,8 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openDocument } from "@/lib/pdf/loader";
+import { extractTextRuns, joinRuns, unionBbox, type TextRun } from "@/lib/pdf/textlayer";
 import { nodeLabel, tagTone, type StructNode } from "@/lib/structure";
 import type { RGB } from "@/lib/pdf/contrast";
+
+export type TextSelection = {
+  text: string;
+  bbox: [number, number, number, number];
+  fontSize: number;
+  page: number;
+};
 
 type Props = {
   bytes: ArrayBuffer | null;
@@ -17,6 +25,9 @@ type Props = {
   /** When set, clicking the page samples a pixel instead of selecting elements. */
   picking?: "fg" | "bg" | null;
   onPickedColor?: (rgb: RGB) => void;
+  /** Enables the invisible, selectable text layer used for highlight-then-key tagging. */
+  textSelect?: boolean;
+  onTextSelection?: (selection: TextSelection | null) => void;
 };
 
 /**
@@ -34,11 +45,16 @@ export function PageCanvas({
   showOverlay,
   picking = null,
   onPickedColor,
+  textSelect = false,
+  onTextSelection,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [dims, setDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [rendering, setRendering] = useState(false);
+  const [runs, setRuns] = useState<TextRun[]>([]);
+
 
   useEffect(() => {
     if (!bytes) return;
@@ -80,6 +96,54 @@ export function PageCanvas({
       cancelled = true;
     };
   }, [bytes, page]);
+
+  // Text runs power the invisible selection layer; only loaded when needed.
+  useEffect(() => {
+    if (!bytes || !textSelect) {
+      setRuns([]);
+      return;
+    }
+    let cancelled = false;
+    const copy = bytes.slice(0);
+    extractTextRuns(copy, page)
+      .then((next) => {
+        if (!cancelled) setRuns(next);
+      })
+      .catch((error) => console.error(error));
+    return () => {
+      cancelled = true;
+    };
+  }, [bytes, page, textSelect]);
+
+  /** Reads the browser selection and reports the covered runs as one region. */
+  function reportSelection() {
+    if (!textSelect || !onTextSelection) return;
+    const layer = layerRef.current;
+    const selection = window.getSelection();
+    if (!layer || !selection || selection.isCollapsed || !selection.toString().trim()) {
+      onTextSelection(null);
+      return;
+    }
+    const picked: TextRun[] = [];
+    for (const element of Array.from(layer.querySelectorAll<HTMLElement>("[data-run]"))) {
+      if (!selection.containsNode(element, true)) continue;
+      const index = Number(element.dataset["run"]);
+      const run = runs.find((r) => r.index === index);
+      if (run) picked.push(run);
+    }
+    if (!picked.length) {
+      onTextSelection(null);
+      return;
+    }
+    picked.sort((a, b) => a.index - b.index);
+    onTextSelection({
+      text: joinRuns(picked),
+      bbox: unionBbox(picked),
+      fontSize: Math.max(...picked.map((r) => r.fontSize)),
+      page,
+    });
+  }
+
 
   function sampleAt(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!picking || !onPickedColor) return;
@@ -124,13 +188,42 @@ export function PageCanvas({
       </div>
 
       <div className="flex-1 overflow-auto bg-muted/50 p-4">
-        <div className="relative mx-auto w-fit shadow-sm">
+        <div className="relative mx-auto w-fit shadow-sm" onMouseUp={reportSelection}>
           <canvas
             ref={canvasRef}
             onClick={sampleAt}
             className={`block rounded-sm bg-white ${picking ? "cursor-crosshair" : ""}`}
             aria-label={`Page ${page} preview`}
           />
+
+          {textSelect && dims.width ? (
+            <div
+              ref={layerRef}
+              aria-hidden="true"
+              className="absolute inset-0 cursor-text select-text overflow-hidden [&_span]:absolute [&_span]:origin-top-left [&_span]:whitespace-pre [&_span]:text-transparent [&_span::selection]:bg-primary/35"
+            >
+              {runs.map((run) => {
+                const [x, y, w, h] = run.bbox;
+                return (
+                  <span
+                    key={run.index}
+                    data-run={run.index}
+                    style={{
+                      left: x * scale,
+                      top: (pageHeightPt - y - h) * scale,
+                      width: Math.max(2, w * scale),
+                      height: Math.max(2, h * scale),
+                      fontSize: Math.max(4, run.fontSize * scale),
+                      lineHeight: `${Math.max(2, h * scale)}px`,
+                    }}
+                  >
+                    {run.text}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+
           {picking ? (
             <p className="absolute inset-x-0 -top-3 mx-auto w-fit rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
               Click the page to sample the {picking === "fg" ? "text" : "background"} colour
@@ -155,7 +248,8 @@ export function PageCanvas({
                     onClick={() => onSelect(node.id)}
                     className={`absolute rounded-[2px] border-2 text-left transition-colors hover:brightness-95 ${
                       selected ? "ring-2 ring-ring ring-offset-1" : ""
-                    } ${node.decorative ? "border-dashed" : ""}`}
+                    } ${node.decorative ? "border-dashed" : ""} ${textSelect ? "pointer-events-none" : ""}`}
+
                     style={{
                       left: x * scale,
                       top: (pageHeightPt - y - h) * scale,
