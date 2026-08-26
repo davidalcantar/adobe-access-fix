@@ -115,6 +115,8 @@ function EditorPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [autoSave, setAutoSave] = useState(true);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [panelTab, setPanelTab] = useState("issues");
+
 
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -268,6 +270,29 @@ function EditorPage() {
     },
     [doc, user, queryClient, documentId, snapshot],
   );
+
+  /** Applies several element patches in one undo step (bulk accept, replace all). */
+  const applyPatches = useCallback(
+    (patches: { id: string; patch: Partial<StructNode> }[], summary: string, aiAssisted = false) => {
+      if (!patches.length) return;
+      snapshot();
+      const map = new Map(patches.map((p) => [p.id, p.patch]));
+      setNodes((current) => current.map((n) => (map.has(n.id) ? { ...n, ...map.get(n.id)! } : n)));
+      setDirty(true);
+      if (doc && user) {
+        void logEdit({
+          documentId: doc.id,
+          projectId: doc.project_id,
+          userId: user.id,
+          editType: "bulk",
+          summary,
+          aiAssisted,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
+      }
+    },
+    [doc, user, queryClient, documentId, snapshot],
+  );
+
 
   const moveNode = useCallback(
     (id: string, direction: -1 | 1) => {
