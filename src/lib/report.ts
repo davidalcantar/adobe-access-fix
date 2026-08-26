@@ -21,7 +21,7 @@ export function buildReportHtml(
   const rows = issues
     .map(
       (i) => `<tr>
-      <td>${escape(i.criterion)} ${escape(i.criterion_name)}</td>
+      <td>${escape(i.criterion)} ${escape(i.criterion_name ?? "")}</td>
       <td>${escape(i.level)}</td>
       <td>${escape(i.severity)}</td>
       <td>${escape(i.title)}<br /><span class="muted">${escape(i.detail)}</span></td>
