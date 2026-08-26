@@ -11,7 +11,7 @@ const Tooltip = ({
   delayDuration,
   ...props
 }: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>) => (
-  <TooltipPrimitive.Provider delayDuration={delayDuration}>
+  <TooltipPrimitive.Provider delayDuration={delayDuration ?? 200}>
     <TooltipPrimitive.Root {...props} />
   </TooltipPrimitive.Provider>
 );

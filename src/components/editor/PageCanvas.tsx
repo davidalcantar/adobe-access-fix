@@ -81,7 +81,7 @@ export function PageCanvas({
         if (!ctx) return;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, viewport.width, viewport.height);
-        await pdfPage.render({ canvasContext: ctx, viewport, canvas }).promise;
+        await pdfPage.render({ canvasContext: ctx, viewport }).promise;
         if (cancelled) return;
         setScale(nextScale);
         setDims({ width: viewport.width, height: viewport.height });
