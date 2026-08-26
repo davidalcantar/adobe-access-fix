@@ -275,10 +275,11 @@ export function PageCanvas({
         <div
           ref={frameRef}
           className={`relative mx-auto w-fit shadow-sm ${lasso ? "cursor-crosshair select-none" : ""}`}
-          onMouseUp={(event) => {
+          onMouseUp={() => {
             if (lasso) endMarquee();
             else reportSelection();
           }}
+
           onMouseDown={startMarquee}
           onMouseMove={moveMarquee}
           onMouseLeave={() => setMarquee(null)}
