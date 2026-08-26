@@ -50,7 +50,7 @@ import { exportRemediatedPdf } from "@/lib/pdf/export";
 import { cropNodeToDataUrl } from "@/lib/pdf/crop";
 import { buildReportHtml } from "@/lib/report";
 import { LEVELS, LEVEL_LABELS, type Level } from "@/lib/wcag";
-import type { StructNode } from "@/lib/structure";
+import { newId, type StructNode, type TagType } from "@/lib/structure";
 
 export const Route = createFileRoute("/_authenticated/documents/$documentId")({
   head: () => ({
