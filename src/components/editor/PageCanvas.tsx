@@ -31,7 +31,12 @@ type Props = {
   onTextSelection?: (selection: TextSelection | null) => void;
   /** User-configurable colour coding per tag type. */
   palette?: TagPalette;
+  /** Drag a box on the page to select every element it touches. */
+  lasso?: boolean;
+  multiSelectedIds?: string[];
+  onLassoSelect?: (ids: string[], additive: boolean) => void;
 };
+
 
 
 /**
