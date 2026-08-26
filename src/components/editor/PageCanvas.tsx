@@ -188,13 +188,42 @@ export function PageCanvas({
       </div>
 
       <div className="flex-1 overflow-auto bg-muted/50 p-4">
-        <div className="relative mx-auto w-fit shadow-sm">
+        <div className="relative mx-auto w-fit shadow-sm" onMouseUp={reportSelection}>
           <canvas
             ref={canvasRef}
             onClick={sampleAt}
             className={`block rounded-sm bg-white ${picking ? "cursor-crosshair" : ""}`}
             aria-label={`Page ${page} preview`}
           />
+
+          {textSelect && dims.width ? (
+            <div
+              ref={layerRef}
+              aria-hidden="true"
+              className="absolute inset-0 cursor-text select-text overflow-hidden [&_span]:absolute [&_span]:origin-top-left [&_span]:whitespace-pre [&_span]:text-transparent [&_span::selection]:bg-primary/35"
+            >
+              {runs.map((run) => {
+                const [x, y, w, h] = run.bbox;
+                return (
+                  <span
+                    key={run.index}
+                    data-run={run.index}
+                    style={{
+                      left: x * scale,
+                      top: (pageHeightPt - y - h) * scale,
+                      width: Math.max(2, w * scale),
+                      height: Math.max(2, h * scale),
+                      fontSize: Math.max(4, run.fontSize * scale),
+                      lineHeight: `${Math.max(2, h * scale)}px`,
+                    }}
+                  >
+                    {run.text}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+
           {picking ? (
             <p className="absolute inset-x-0 -top-3 mx-auto w-fit rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
               Click the page to sample the {picking === "fg" ? "text" : "background"} colour
