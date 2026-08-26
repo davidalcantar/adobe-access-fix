@@ -29,7 +29,11 @@ import { TagColorSettings } from "@/components/editor/TagColorSettings";
 import { useTagPalette } from "@/lib/tagColors";
 import { Inspector } from "@/components/editor/Inspector";
 import { IssuePanel } from "@/components/editor/IssuePanel";
+import { FixNext } from "@/components/editor/FixNext";
+import { FindReplace } from "@/components/editor/FindReplace";
+import { BulkAltText } from "@/components/editor/BulkAltText";
 import { PagePatch } from "@/components/editor/PagePatch";
+
 import { levelPassEstimates } from "@/lib/pdf/audit";
 import { toHex, type RGB } from "@/lib/pdf/contrast";
 import { Badge } from "@/components/ui/badge";
