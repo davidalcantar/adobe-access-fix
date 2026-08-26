@@ -1,5 +1,5 @@
 import { PDFDocument, PDFName, PDFNull, PDFNumber, PDFString, type PDFRef } from "pdf-lib";
-import type { StructNode } from "../structure";
+import { isHeading, type StructNode } from "../structure";
 
 export type ExportOptions = {
   title: string;
