@@ -58,7 +58,7 @@ export async function saveStructure(documentId: string, projectId: string, nodes
     {
       document_id: documentId,
       project_id: projectId,
-      tree: nodes as unknown as Database["public"]["Tables"]["document_structure"]["Insert"]["tree"],
+      tree: nodes as unknown as Json,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "document_id" },
