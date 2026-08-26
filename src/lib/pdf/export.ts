@@ -30,6 +30,13 @@ const ROLE: Record<string, string> = {
   Caption: "Caption",
   Link: "Link",
   Form: "Form",
+  BlockQuote: "BlockQuote",
+  Note: "Note",
+  Reference: "Reference",
+  Code: "Code",
+  Formula: "Formula",
+  TOC: "TOC",
+  TOCI: "TOCI",
 };
 
 /**
@@ -90,6 +97,16 @@ export async function exportRemediatedPdf(
     if (node.alt?.trim()) dict["Alt"] = PDFString.of(node.alt.trim());
     if (node.longDesc?.trim()) dict["ActualText"] = PDFString.of(node.longDesc.trim());
     if (node.lang?.trim()) dict["Lang"] = PDFString.of(node.lang.trim());
+    if (node.actualText?.trim()) dict["ActualText"] = PDFString.of(node.actualText.trim());
+    const expansion = Object.entries(node.expansions ?? {})[0];
+    if (expansion) dict["E"] = PDFString.of(expansion[1]);
+    if (node.type === "Table" && node.tableSummary?.trim()) {
+      dict["A"] = ctx.obj({ O: PDFName.of("Table"), Summary: PDFString.of(node.tableSummary.trim()) });
+    }
+    if (node.type === "L" && node.listType) {
+      const listNumbering = { Unordered: "Disc", Ordered: "Decimal", Description: "None" }[node.listType];
+      dict["A"] = ctx.obj({ O: PDFName.of("List"), ListNumbering: PDFName.of(listNumbering) });
+    }
     if (node.type === "Form" && node.fieldLabel?.trim()) dict["T"] = PDFString.of(node.fieldLabel.trim());
     if (node.type === "Link" && node.text.trim()) dict["Alt"] = PDFString.of(node.text.trim());
 

@@ -511,7 +511,10 @@ async function measureContrast(
     const ch = Math.min(canvas.height - cy, Math.ceil(h * scale) + 2);
     if (cw < 3 || ch < 3) continue;
     const result = measureRegionContrast(ctx.getImageData(cx, cy, cw, ch).data);
-    if (result) n.contrast = result.ratio;
+    if (result) {
+      n.contrast = result.ratio;
+      n.colors = { fg: result.fg, bg: result.bg };
+    }
   }
   canvas.width = 0;
   canvas.height = 0;
