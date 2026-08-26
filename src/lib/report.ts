@@ -24,7 +24,7 @@ export function buildReportHtml(
       <td>${escape(i.criterion)} ${escape(i.criterion_name ?? "")}</td>
       <td>${escape(i.level)}</td>
       <td>${escape(i.severity)}</td>
-      <td>${escape(i.title)}<br /><span class="muted">${escape(i.detail)}</span></td>
+      <td>${escape(i.title)}<br /><span class="muted">${escape(i.detail ?? "")}</span></td>
       <td>${i.page_number ?? "—"}</td>
       <td>${escape(i.state)}${i.waiver_reason ? `<br /><span class="muted">${escape(i.waiver_reason)}</span>` : ""}</td>
     </tr>`,
