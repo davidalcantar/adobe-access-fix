@@ -130,7 +130,7 @@ function ProjectPage() {
                         {doc.filename}
                       </Link>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {doc.page_count} pages · {doc.source_tagged ? "tagged source" : "untagged source"} ·{" "}
+                        {doc.page_count} pages · {doc.is_tagged ? "tagged source" : "untagged source"} ·{" "}
                         {doc.status.replace("_", " ")}
                       </p>
                     </div>

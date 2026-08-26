@@ -73,7 +73,7 @@ export function UploadDocument({ project }: { project: ProjectRow }) {
           page_count: analysis.pageCount,
           target_level: level,
           status: "in_review",
-          source_tagged: analysis.isTagged,
+          is_tagged: analysis.isTagged,
           doc_title: analysis.sourceTitle,
           doc_language: analysis.sourceLang ?? "en",
           conformance_score: score,
