@@ -237,10 +237,43 @@ export async function exportRemediatedPdf(
   );
 
   doc.catalog.set(PDFName.of("StructTreeRoot"), structTreeRootRef);
+
+  // Bookmark outline, built from the heading tags so long documents are navigable.
+  const headings = options.nodes.filter((n) => isHeading(n.type) && n.text.trim());
+  if (headings.length) {
+    const outlineRef = ctx.nextRef();
+    const itemRefs = headings.map(() => ctx.nextRef());
+    headings.forEach((node, i) => {
+      const page = pages[Math.min(Math.max(node.page - 1, 0), pages.length - 1)];
+      const dict: Record<string, unknown> = {
+        Title: PDFString.of(node.text.trim().slice(0, 200)),
+        Parent: outlineRef,
+      };
+      if (page) dict["Dest"] = [page.ref, PDFName.of("XYZ"), PDFNull, PDFNumber.of(node.bbox[1] + node.bbox[3]), PDFNull];
+      const prev = itemRefs[i - 1];
+      const next = itemRefs[i + 1];
+      if (prev) dict["Prev"] = prev;
+      if (next) dict["Next"] = next;
+      ctx.assign(itemRefs[i]!, ctx.obj(dict as never));
+    });
+    ctx.assign(
+      outlineRef,
+      ctx.obj({
+        Type: PDFName.of("Outlines"),
+        First: itemRefs[0]!,
+        Last: itemRefs[itemRefs.length - 1]!,
+        Count: PDFNumber.of(itemRefs.length),
+      } as never),
+    );
+    doc.catalog.set(PDFName.of("Outlines"), outlineRef);
+    doc.catalog.set(PDFName.of("PageMode"), PDFName.of("UseOutlines"));
+  }
+
   doc.catalog.set(
     PDFName.of("ViewerPreferences"),
     ctx.obj({ DisplayDocTitle: true } as never),
   );
+
 
   const bytes = await doc.save({ useObjectStreams: false });
   return { bytes, mappedElements: mapped, skeletonElements: skeleton };
