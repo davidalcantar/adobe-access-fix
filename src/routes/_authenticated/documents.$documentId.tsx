@@ -981,21 +981,32 @@ function EditorPage() {
         </section>
 
         <section className="flex max-h-[calc(100dvh-8.5rem)] flex-col border-border lg:border-l">
-          <Tabs defaultValue="issues" className="flex min-h-0 flex-1 flex-col">
-            <TabsList className="m-2 grid grid-cols-4">
+          <Tabs value={panelTab} onValueChange={setPanelTab} className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="m-2 grid grid-cols-5">
               <TabsTrigger value="issues">
                 Findings
                 {openCount ? <Badge className="ml-1.5">{openCount}</Badge> : null}
               </TabsTrigger>
               <TabsTrigger value="element">Element</TabsTrigger>
+              <TabsTrigger value="tools">Tools</TabsTrigger>
               <TabsTrigger value="doc">Document</TabsTrigger>
               <TabsTrigger value="review">Review</TabsTrigger>
             </TabsList>
 
             <div className="min-h-0 flex-1 overflow-auto">
               <TabsContent value="issues" className="m-0">
-                <div className="border-b border-border p-3">
+                <div className="space-y-3 border-b border-border p-3">
                   <LevelMeter estimates={estimates} target={doc.target_level} />
+                  <FixNext
+                    issues={issues.data ?? []}
+                    readOnly={readOnly}
+                    onFocus={(issue) => {
+                      if (issue.page_number) setPage(issue.page_number);
+                      if (issue.element_ref) setSelectedId(issue.element_ref);
+                      setPanelTab("element");
+                    }}
+                    onMarkFixed={(issue) => void changeIssueState(issue, "fixed", null)}
+                  />
                 </div>
                 <IssuePanel
                   issues={issues.data ?? []}
@@ -1008,6 +1019,35 @@ function EditorPage() {
                   readOnly={readOnly}
                 />
               </TabsContent>
+
+              <TabsContent value="tools" className="m-0 space-y-6 p-4">
+                <BulkAltText
+                  nodes={nodes}
+                  documentTitle={docTitle}
+                  readOnly={readOnly}
+                  cropNode={cropNode}
+                  onSelect={(nodeId) => {
+                    const target = nodes.find((n) => n.id === nodeId);
+                    if (target) setPage(target.page);
+                    setSelectedId(nodeId);
+                    setPanelTab("element");
+                  }}
+                  onApplyMany={(patches, summary) => applyPatches(patches, summary, true)}
+                />
+                <div className="border-t border-border pt-5">
+                  <FindReplace
+                    nodes={nodes}
+                    readOnly={readOnly}
+                    onSelect={(node) => {
+                      setPage(node.page);
+                      setSelectedId(node.id);
+                      setPanelTab("element");
+                    }}
+                    onReplaceMany={(patches, summary) => applyPatches(patches, summary)}
+                  />
+                </div>
+              </TabsContent>
+
 
               <TabsContent value="element" className="m-0">
                 <Inspector
