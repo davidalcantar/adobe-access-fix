@@ -25,6 +25,8 @@ import { ExportChecklist, buildPreflight } from "@/components/editor/ExportCheck
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 
 import { StructureTree } from "@/components/editor/StructureTree";
+import { TagColorSettings } from "@/components/editor/TagColorSettings";
+import { useTagPalette } from "@/lib/tagColors";
 import { Inspector } from "@/components/editor/Inspector";
 import { IssuePanel } from "@/components/editor/IssuePanel";
 import { PagePatch } from "@/components/editor/PagePatch";
@@ -121,6 +123,7 @@ function EditorPage() {
   const nodesRef = useRef<StructNode[]>([]);
   const history = useRef<{ past: StructNode[][]; future: StructNode[][] }>({ past: [], future: [] });
   const [historyDepth, setHistoryDepth] = useState({ past: 0, future: 0 });
+  const { palette, setColor, reset: resetPalette } = useTagPalette();
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -292,6 +295,36 @@ function EditorPage() {
     },
     [doc, user, queryClient, documentId, snapshot],
   );
+
+  /** Drag-and-drop reorder: place the dragged element just before the drop target. */
+  const reorderNode = useCallback(
+    (draggedId: string, targetId: string) => {
+      if (draggedId === targetId) return;
+      snapshot();
+      setNodes((current) => {
+        const from = current.findIndex((n) => n.id === draggedId);
+        const to = current.findIndex((n) => n.id === targetId);
+        if (from < 0 || to < 0) return current;
+        const next = [...current];
+        const [moved] = next.splice(from, 1);
+        next.splice(next.findIndex((n) => n.id === targetId), 0, moved!);
+        return next;
+      });
+      setDirty(true);
+      if (doc && user) {
+        void logEdit({
+          documentId: doc.id,
+          projectId: doc.project_id,
+          userId: user.id,
+          editType: "reading-order",
+          summary: "Dragged an element to a new position in the reading order",
+          elementRef: draggedId,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
+      }
+    },
+    [doc, user, queryClient, documentId, snapshot],
+  );
+
 
   const removeNode = useCallback(
     (id: string) => {
@@ -471,21 +504,21 @@ function EditorPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty, autoSave]);
 
-  async function recheck() {
+  async function recheck(levelOverride?: Level) {
     if (!doc) return;
     setBusy("audit");
     try {
       await saveStructure(doc.id, doc.project_id, nodes);
       setDirty(false);
       const findings = auditDocument(nodes, {
-        targetLevel: doc.target_level,
+        targetLevel: levelOverride ?? doc.target_level,
         isTagged: doc.is_tagged,
         title: docTitle,
         language: docLang,
         pageCount: doc.page_count,
         hasOutline: true,
       });
-      const result = await syncFindings(doc, findings);
+      const result = await syncFindings({ ...doc, target_level: levelOverride ?? doc.target_level }, findings);
       toast.success(`${result.count} finding${result.count === 1 ? "" : "s"} · Accessibility Score ${result.score}`);
       void queryClient.invalidateQueries({ queryKey: ["issues", documentId] });
       void queryClient.invalidateQueries({ queryKey: ["document", documentId] });
@@ -504,8 +537,11 @@ function EditorPage() {
       return;
     }
     await queryClient.invalidateQueries({ queryKey: ["document", documentId] });
-    toast.success(`Target set to Level ${level}. Re-run the checks to rescope the findings.`);
+    toast.success(`Target set to Level ${level}. Re-running the checks…`);
+    // Standards changed, so the findings are rescoped automatically.
+    await recheck(level);
   }
+
 
   async function changeIssueState(issue: IssueRow, state: IssueRow["state"], waiverReason: string | null) {
     if (!user || !doc) return;
@@ -686,6 +722,7 @@ function EditorPage() {
                 ))}
               </SelectContent>
             </Select>
+            <TagColorSettings palette={palette} onChange={setColor} onReset={resetPalette} />
             {!readOnly ? (
               <>
                 <div className="flex items-center gap-1">
@@ -842,6 +879,9 @@ function EditorPage() {
               onSelect={setSelectedId}
               onMove={moveNode}
               onRemove={removeNode}
+              onReorder={reorderNode}
+              onChange={(id, patch, summary) => applyPatch(id, patch, summary)}
+              palette={palette}
               readOnly={readOnly}
             />
           </div>
@@ -870,6 +910,7 @@ function EditorPage() {
           </div>
           <TagToolbar
             node={selected}
+            palette={palette}
             readOnly={readOnly}
             onRetag={(id, type) => applyPatch(id, { type }, `Retagged to ${type}`)}
             pendingText={pending?.text ?? null}
@@ -895,6 +936,7 @@ function EditorPage() {
             selectedId={selectedId}
             onSelect={setSelectedId}
             showOverlay={showOverlay}
+            palette={palette}
             picking={pickingColor}
             onPickedColor={(rgb: RGB) => {
               if (!selected || !pickingColor) return;

@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openDocument } from "@/lib/pdf/loader";
 import { extractTextRuns, joinRuns, unionBbox, type TextRun } from "@/lib/pdf/textlayer";
-import { nodeLabel, tagTone, type StructNode } from "@/lib/structure";
+import { nodeLabel, type StructNode } from "@/lib/structure";
+import { DEFAULT_TAG_PALETTE, toneFor, type TagPalette } from "@/lib/tagColors";
 import type { RGB } from "@/lib/pdf/contrast";
 
 export type TextSelection = {
@@ -28,7 +29,10 @@ type Props = {
   /** Enables the invisible, selectable text layer used for highlight-then-key tagging. */
   textSelect?: boolean;
   onTextSelection?: (selection: TextSelection | null) => void;
+  /** User-configurable colour coding per tag type. */
+  palette?: TagPalette;
 };
+
 
 /**
  * Renders the page and overlays the structure elements assigned to it, so a
@@ -47,6 +51,7 @@ export function PageCanvas({
   onPickedColor,
   textSelect = false,
   onTextSelection,
+  palette = DEFAULT_TAG_PALETTE,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
@@ -240,7 +245,7 @@ export function PageCanvas({
             ? pageNodes.map((node, index) => {
                 const [x, y, w, h] = node.bbox;
                 const selected = node.id === selectedId;
-                const tone = tagTone(node.type);
+                const tone = toneFor(palette, node.type);
                 return (
                   <button
                     key={node.id}
@@ -265,9 +270,12 @@ export function PageCanvas({
                     </span>
                     <span
                       aria-hidden="true"
-                      className="absolute -top-2 -left-2 inline-flex min-w-5 items-center justify-center rounded bg-foreground px-1 font-mono text-[10px] font-semibold leading-4 text-background"
+                      className="absolute -top-2 -left-2 inline-flex items-center gap-1 rounded px-1 font-mono text-[10px] font-semibold leading-4 text-white shadow-sm"
+                      style={{ backgroundColor: tone.solid }}
                     >
-                      {node.type}
+                      <span className="tabular-nums">{index + 1}</span>
+                      <span className="opacity-80">·</span>
+                      <span>{node.type}</span>
                     </span>
                   </button>
                 );

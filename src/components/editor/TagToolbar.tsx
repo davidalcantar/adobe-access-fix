@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { TAG_GROUPS, TAG_SHORTCUTS, tagTone, type StructNode, type TagType } from "@/lib/structure";
+import { TAG_GROUPS, TAG_SHORTCUTS, type StructNode, type TagType } from "@/lib/structure";
+import { DEFAULT_TAG_PALETTE, toneFor, type TagPalette } from "@/lib/tagColors";
 
 type Props = {
   node: StructNode | null;
@@ -10,6 +11,7 @@ type Props = {
   pendingText?: string | null;
   onTagPending?: (type: TagType) => void;
   onClearPending?: () => void;
+  palette?: TagPalette;
 };
 
 const shortcutFor = (type: TagType) =>
@@ -19,7 +21,7 @@ const shortcutFor = (type: TagType) =>
  * One-click retagging for the highlighted text or the selected element, grouped
  * by tag family. Every button mirrors a single-key shortcut.
  */
-export function TagToolbar({ node, readOnly, onRetag, pendingText = null, onTagPending, onClearPending }: Props) {
+export function TagToolbar({ node, readOnly, onRetag, pendingText = null, onTagPending, onClearPending, palette = DEFAULT_TAG_PALETTE }: Props) {
   const pending = Boolean(pendingText && onTagPending);
 
   function apply(type: TagType) {
@@ -61,7 +63,7 @@ export function TagToolbar({ node, readOnly, onRetag, pendingText = null, onTagP
           <span className="sr-only">{group.label}</span>
           {group.types.map((type) => {
             const active = !pending && node?.type === type;
-            const tone = tagTone(type);
+            const tone = toneFor(palette, type);
             const key = shortcutFor(type);
             return (
               <Tooltip key={type}>
