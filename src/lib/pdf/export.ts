@@ -87,11 +87,11 @@ export async function exportRemediatedPdf(
       Pg: page.ref,
     };
 
-    if (node.alt?.trim()) dict.Alt = PDFString.of(node.alt.trim());
-    if (node.longDesc?.trim()) dict.ActualText = PDFString.of(node.longDesc.trim());
-    if (node.lang?.trim()) dict.Lang = PDFString.of(node.lang.trim());
-    if (node.type === "Form" && node.fieldLabel?.trim()) dict.T = PDFString.of(node.fieldLabel.trim());
-    if (node.type === "Link" && node.text.trim()) dict.Alt = PDFString.of(node.text.trim());
+    if (node.alt?.trim()) dict["Alt"] = PDFString.of(node.alt.trim());
+    if (node.longDesc?.trim()) dict["ActualText"] = PDFString.of(node.longDesc.trim());
+    if (node.lang?.trim()) dict["Lang"] = PDFString.of(node.lang.trim());
+    if (node.type === "Form" && node.fieldLabel?.trim()) dict["T"] = PDFString.of(node.fieldLabel.trim());
+    if (node.type === "Link" && node.text.trim()) dict["Alt"] = PDFString.of(node.text.trim());
 
     const kids: unknown[] = [];
 
@@ -115,7 +115,7 @@ export async function exportRemediatedPdf(
             ActualText: PDFString.of(cell.text || " "),
           };
           if (cell.isHeader && cell.scope) {
-            cellDict.A = ctx.obj({
+            cellDict["A"] = ctx.obj({
               O: PDFName.of("Table"),
               Scope: PDFName.of(cell.scope),
             });
@@ -171,12 +171,12 @@ export async function exportRemediatedPdf(
       mapped += 1;
     } else {
       if (node.text.trim() && node.type !== "Figure") {
-        dict.ActualText = PDFString.of(node.text.slice(0, 2000));
+        dict["ActualText"] = PDFString.of(node.text.slice(0, 2000));
       }
       skeleton += 1;
     }
 
-    if (kids.length) dict.K = kids;
+    if (kids.length) dict["K"] = kids;
     ctx.assign(ref, ctx.obj(dict as never));
     topLevel.push(ref);
   }
