@@ -910,6 +910,7 @@ function EditorPage() {
           </div>
           <TagToolbar
             node={selected}
+            palette={palette}
             readOnly={readOnly}
             onRetag={(id, type) => applyPatch(id, { type }, `Retagged to ${type}`)}
             pendingText={pending?.text ?? null}
