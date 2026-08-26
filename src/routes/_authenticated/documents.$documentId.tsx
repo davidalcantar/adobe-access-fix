@@ -332,6 +332,7 @@ function EditorPage() {
         fontSize: pending.fontSize,
         isLargeText: pending.fontSize >= 18 || pending.fontSize >= 14,
       };
+      snapshot();
       setNodes((current) => {
         const next = [...current];
         // Insert after the last element on the page that sits above it.
