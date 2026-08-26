@@ -72,12 +72,26 @@ export function TagToolbar({ node, readOnly, onRetag, pendingText = null, onTagP
                     variant={active ? "default" : "outline"}
                     disabled={(!node && !pending) || readOnly}
                     aria-pressed={active}
-                    className="h-8 px-2 font-mono text-xs"
+                    aria-keyshortcuts={key ?? undefined}
+                    className="h-8 gap-1 px-2 font-mono text-xs"
                     style={active ? undefined : { borderColor: tone.border }}
                     onClick={() => apply(type)}
                   >
-                    {type}
+                    <span>{type}</span>
+                    {key ? (
+                      <kbd
+                        aria-hidden="true"
+                        className={`rounded border px-1 text-[0.625rem] leading-4 ${
+                          active
+                            ? "border-primary-foreground/40 text-primary-foreground/80"
+                            : "border-border text-muted-foreground"
+                        }`}
+                      >
+                        {key}
+                      </kbd>
+                    ) : null}
                   </Button>
+
 
                 </TooltipTrigger>
                 <TooltipContent>
