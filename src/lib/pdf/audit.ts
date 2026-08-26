@@ -1,6 +1,5 @@
-import { RULES, levelsInScope, severityWeight, type Level } from "../wcag";
+import { RULES, levelRank, levelsInScope, severityWeight, type Level, type Severity } from "../wcag";
 import { headingLevel, isHeading, type Finding, type StructNode } from "../structure";
-import { levelRank, type Severity } from "../wcag";
 
 export type DocMeta = {
   targetLevel: Level;
