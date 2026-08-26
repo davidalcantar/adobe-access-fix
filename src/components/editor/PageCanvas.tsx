@@ -57,13 +57,21 @@ export function PageCanvas({
   textSelect = false,
   onTextSelection,
   palette = DEFAULT_TAG_PALETTE,
+  lasso = false,
+  multiSelectedIds = [],
+  onLassoSelect,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [dims, setDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [rendering, setRendering] = useState(false);
   const [runs, setRuns] = useState<TextRun[]>([]);
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number; additive: boolean } | null>(
+    null,
+  );
+
 
 
   useEffect(() => {
