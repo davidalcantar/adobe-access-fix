@@ -31,7 +31,12 @@ type Props = {
   onTextSelection?: (selection: TextSelection | null) => void;
   /** User-configurable colour coding per tag type. */
   palette?: TagPalette;
+  /** Drag a box on the page to select every element it touches. */
+  lasso?: boolean;
+  multiSelectedIds?: string[];
+  onLassoSelect?: (ids: string[], additive: boolean) => void;
 };
+
 
 
 /**
@@ -52,13 +57,21 @@ export function PageCanvas({
   textSelect = false,
   onTextSelection,
   palette = DEFAULT_TAG_PALETTE,
+  lasso = false,
+  multiSelectedIds = [],
+  onLassoSelect,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [dims, setDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [rendering, setRendering] = useState(false);
   const [runs, setRuns] = useState<TextRun[]>([]);
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number; additive: boolean } | null>(
+    null,
+  );
+
 
 
   useEffect(() => {
@@ -166,6 +179,72 @@ export function PageCanvas({
   const pageNodes = nodes.filter((n) => n.page === page);
   const pageHeightPt = dims.height / (scale || 1);
 
+  /** Screen-space rect of a node, in CSS pixels relative to the page frame. */
+  function rectOf(node: StructNode) {
+    const [x, y, w, h] = node.bbox;
+    return {
+      left: x * scale,
+      top: (pageHeightPt - y - h) * scale,
+      width: Math.max(6, w * scale),
+      height: Math.max(6, h * scale),
+    };
+  }
+
+  function framePoint(event: React.MouseEvent) {
+    const frame = frameRef.current;
+    if (!frame) return { x: 0, y: 0 };
+    const rect = frame.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function startMarquee(event: React.MouseEvent) {
+    if (!lasso || picking) return;
+    event.preventDefault();
+    const { x, y } = framePoint(event);
+    setMarquee({ x0: x, y0: y, x1: x, y1: y, additive: event.shiftKey || event.metaKey || event.ctrlKey });
+  }
+
+  function moveMarquee(event: React.MouseEvent) {
+    if (!marquee) return;
+    const { x, y } = framePoint(event);
+    setMarquee({ ...marquee, x1: x, y1: y });
+  }
+
+  function endMarquee() {
+    if (!marquee) return;
+    const box = {
+      left: Math.min(marquee.x0, marquee.x1),
+      top: Math.min(marquee.y0, marquee.y1),
+      right: Math.max(marquee.x0, marquee.x1),
+      bottom: Math.max(marquee.y0, marquee.y1),
+    };
+    const additive = marquee.additive;
+    setMarquee(null);
+    if (box.right - box.left < 4 && box.bottom - box.top < 4) {
+      onLassoSelect?.([], additive);
+      return;
+    }
+    const hits = pageNodes
+      .filter((node) => {
+        const r = rectOf(node);
+        return (
+          r.left < box.right && r.left + r.width > box.left && r.top < box.bottom && r.top + r.height > box.top
+        );
+      })
+      .map((node) => node.id);
+    onLassoSelect?.(hits, additive);
+  }
+
+  const marqueeBox = marquee
+    ? {
+        left: Math.min(marquee.x0, marquee.x1),
+        top: Math.min(marquee.y0, marquee.y1),
+        width: Math.abs(marquee.x1 - marquee.x0),
+        height: Math.abs(marquee.y1 - marquee.y0),
+      }
+    : null;
+
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
@@ -193,7 +272,19 @@ export function PageCanvas({
       </div>
 
       <div className="flex-1 overflow-auto bg-muted/50 p-4">
-        <div className="relative mx-auto w-fit shadow-sm" onMouseUp={reportSelection}>
+        <div
+          ref={frameRef}
+          className={`relative mx-auto w-fit shadow-sm ${lasso ? "cursor-crosshair select-none" : ""}`}
+          onMouseUp={() => {
+            if (lasso) endMarquee();
+            else reportSelection();
+          }}
+
+          onMouseDown={startMarquee}
+          onMouseMove={moveMarquee}
+          onMouseLeave={() => setMarquee(null)}
+        >
+
           <canvas
             ref={canvasRef}
             onClick={sampleAt}
@@ -241,10 +332,25 @@ export function PageCanvas({
             </span>
           ) : null}
 
+          {marqueeBox ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute rounded-sm border-2 border-primary bg-primary/15"
+              style={marqueeBox}
+            />
+          ) : null}
+
+          {lasso && !marquee ? (
+            <p className="absolute inset-x-0 -top-3 mx-auto w-fit rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+              Drag a box to select elements · hold Shift to add
+            </p>
+          ) : null}
+
           {showOverlay && dims.width && !picking
             ? pageNodes.map((node, index) => {
                 const [x, y, w, h] = node.bbox;
                 const selected = node.id === selectedId;
+                const multi = multiSelectedIds.includes(node.id);
                 const tone = toneFor(palette, node.type);
                 return (
                   <button
@@ -252,8 +358,8 @@ export function PageCanvas({
                     type="button"
                     onClick={() => onSelect(node.id)}
                     className={`absolute rounded-[2px] border-2 text-left transition-colors hover:brightness-95 ${
-                      selected ? "ring-2 ring-ring ring-offset-1" : ""
-                    } ${node.decorative ? "border-dashed" : ""} ${textSelect ? "pointer-events-none" : ""}`}
+                      selected || multi ? "ring-2 ring-ring ring-offset-1" : ""
+                    } ${node.decorative ? "border-dashed" : ""} ${textSelect || lasso ? "pointer-events-none" : ""}`}
 
                     style={{
                       left: x * scale,
@@ -261,8 +367,12 @@ export function PageCanvas({
                       width: Math.max(6, w * scale),
                       height: Math.max(6, h * scale),
                       borderColor: tone.border,
-                      backgroundColor: selected ? "color-mix(in oklab, var(--color-primary) 20%, transparent)" : tone.fill,
+                      backgroundColor:
+                        selected || multi
+                          ? "color-mix(in oklab, var(--color-primary) 20%, transparent)"
+                          : tone.fill,
                     }}
+
                     aria-current={selected ? "true" : undefined}
                   >
                     <span className="sr-only">

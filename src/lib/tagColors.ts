@@ -84,5 +84,5 @@ export function useTagPalette() {
 
   const reset = useCallback(() => persist({ ...DEFAULT_TAG_PALETTE }), [persist]);
 
-  return { palette, setColor, reset };
+  return { palette, setColor, reset, setPalette: persist };
 }

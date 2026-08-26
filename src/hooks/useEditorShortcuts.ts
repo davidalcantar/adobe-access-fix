@@ -9,6 +9,11 @@ export type ShortcutHandlers = {
   onTagPending: (type: TagType) => void;
   /** Retag the currently selected element. */
   onRetagSelected: (type: TagType) => void;
+  /** True while several elements are lasso-selected. */
+  hasMulti: boolean;
+  /** Retag every lasso-selected element at once. */
+  onTagMulti: (type: TagType) => void;
+  onToggleLasso: () => void;
   hasSelection: boolean;
   onClearPending: () => void;
   onStepSelection: (direction: -1 | 1) => void;
@@ -80,6 +85,11 @@ export function useEditorShortcuts(handlers: ShortcutHandlers) {
           handlers.onTagPending(tag);
           return;
         }
+        if (handlers.hasMulti) {
+          event.preventDefault();
+          handlers.onTagMulti(tag);
+          return;
+        }
         if (handlers.hasSelection) {
           event.preventDefault();
           handlers.onRetagSelected(tag);
@@ -101,7 +111,7 @@ export function useEditorShortcuts(handlers: ShortcutHandlers) {
           return;
         case "Delete":
         case "Backspace":
-          if (!handlers.hasSelection) return;
+          if (!handlers.hasSelection && !handlers.hasMulti) return;
           event.preventDefault();
           handlers.onDeleteSelected();
           return;
@@ -121,6 +131,10 @@ export function useEditorShortcuts(handlers: ShortcutHandlers) {
         case "h":
           event.preventDefault();
           handlers.onToggleHighlightMode();
+          return;
+        case "x":
+          event.preventDefault();
+          handlers.onToggleLasso();
           return;
         case ",":
           event.preventDefault();
@@ -156,6 +170,8 @@ export const SHORTCUT_ROWS: { keys: string; action: string }[] = [
   { keys: "D", action: "Mark the element decorative (or undo it)" },
   { keys: "Delete", action: "Remove the element from the structure" },
   { keys: "H", action: "Turn highlight mode on or off" },
+  { keys: "X", action: "Turn the lasso on or off (drag a box to select several elements)" },
+  { keys: "Lasso, then a tag key", action: "Retag every selected element at once" },
   { keys: "V", action: "Show or hide the tag overlay" },
   { keys: ", / .", action: "Previous / next page" },
   { keys: "Ctrl or ⌘ + Z", action: "Undo the last change" },
