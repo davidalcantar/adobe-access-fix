@@ -664,20 +664,50 @@ function EditorPage() {
         </section>
 
         <section aria-label="Page preview" className="max-h-[calc(100dvh-8.5rem)] border-b border-border lg:border-b-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <span className="flex items-center gap-2">
+              <Switch
+                id="highlight-mode"
+                checked={highlightMode}
+                onCheckedChange={(v) => {
+                  setHighlightMode(v);
+                  setPending(null);
+                }}
+                disabled={readOnly}
+              />
+              <Label htmlFor="highlight-mode" className="text-xs">
+                Highlight mode
+                <span className="block font-normal text-muted-foreground">
+                  Select text on the page, then press a key to tag it (H)
+                </span>
+              </Label>
+            </span>
+            <ShortcutHelp open={helpOpen} onOpenChange={setHelpOpen} />
+          </div>
           <TagToolbar
             node={selected}
             readOnly={readOnly}
             onRetag={(id, type) => applyPatch(id, { type }, `Retagged to ${type}`)}
+            pendingText={pending?.text ?? null}
+            onTagPending={tagPending}
+            onClearPending={() => {
+              setPending(null);
+              window.getSelection()?.removeAllRanges();
+            }}
           />
           <PageCanvas
             bytes={bytes}
             nodes={nodes}
             pageCount={doc.page_count}
             page={page}
+            textSelect={highlightMode && !readOnly && !pickingColor}
+            onTextSelection={setPending}
             onPageChange={(next) => {
               setPage(next);
               setSelectedId(null);
+              setPending(null);
             }}
+
             selectedId={selectedId}
             onSelect={setSelectedId}
             showOverlay={showOverlay}
