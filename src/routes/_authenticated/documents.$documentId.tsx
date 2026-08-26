@@ -258,6 +258,8 @@ function EditorPage() {
         isTagged: doc.is_tagged,
         title: docTitle,
         language: docLang,
+        pageCount: doc.page_count,
+        hasOutline: true,
       });
       const result = await syncFindings(doc, findings);
       toast.success(`${result.count} finding${result.count === 1 ? "" : "s"} · score ${result.score}`);
@@ -311,6 +313,8 @@ function EditorPage() {
       const result = await exportRemediatedPdf(bytes.slice(0), {
         title: docTitle,
         language: docLang,
+        pageCount: doc.page_count,
+        hasOutline: true,
         nodes,
       });
       const blob = new Blob([result.bytes as unknown as BlobPart], { type: "application/pdf" });

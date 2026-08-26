@@ -6,6 +6,8 @@ export type PageInfo = { pageNumber: number; width: number; height: number };
 
 export type AnalysisResult = {
   pageCount: number;
+  /** True when the source PDF already ships a bookmark outline. */
+  hasOutline: boolean;
   pages: PageInfo[];
   isTagged: boolean;
   sourceTitle: string | null;
@@ -169,6 +171,7 @@ export async function analyzePdf(
 
   onProgress?.(97, "Compiling findings");
 
+  const outline = await doc.getOutline().catch(() => null);
   const title = typeof info["Title"] === "string" && info["Title"].trim() ? info["Title"].trim() : null;
   const lang = typeof info["Language"] === "string" && info["Language"].trim() ? info["Language"].trim() : null;
 
@@ -178,6 +181,7 @@ export async function analyzePdf(
     pageCount: pages.length,
     pages,
     isTagged: sawSourceTags || !!markInfo?.Marked,
+    hasOutline: !!outline?.length,
     sourceTitle: title,
     sourceLang: lang,
     displayDocTitle: false,
