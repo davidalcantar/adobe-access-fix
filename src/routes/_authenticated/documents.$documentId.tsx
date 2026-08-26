@@ -87,6 +87,10 @@ function EditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pickingColor, setPickingColor] = useState<"fg" | "bg" | null>(null);
   const [showOverlay, setShowOverlay] = useState(true);
+  const [highlightMode, setHighlightMode] = useState(true);
+  const [pending, setPending] = useState<TextSelection | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [comment, setComment] = useState("");
