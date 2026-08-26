@@ -422,10 +422,15 @@ function EditorPage() {
     onSave: () => {
       if (!readOnly) void save();
     },
+    onUndo: () => {
+      if (!readOnly) undo();
+    },
+    onRedo: () => {
+      if (!readOnly) redo();
+    },
   });
 
-  async function save() {
-
+  async function save(silent = false) {
     if (!doc) return;
     setBusy("save");
     try {
@@ -436,7 +441,8 @@ function EditorPage() {
         .eq("id", doc.id);
       if (error) throw error;
       setDirty(false);
-      toast.success("Structure saved.");
+      setSavedAt(new Date());
+      if (!silent) toast.success("Structure saved.");
       void queryClient.invalidateQueries({ queryKey: ["document", documentId] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Save failed.");
@@ -444,6 +450,26 @@ function EditorPage() {
       setBusy(null);
     }
   }
+
+  // Auto-save: write a moment after the user stops editing, quietly.
+  useEffect(() => {
+    if (!autoSave || !dirty || readOnly || busy !== null || !doc) return;
+    const timer = setTimeout(() => {
+      void save(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSave, dirty, readOnly, busy, doc?.id, nodes, docTitle, docLang]);
+
+  // Warn before leaving with unsaved work when auto-save is off.
+  useEffect(() => {
+    if (!dirty || autoSave) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty, autoSave]);
 
   async function recheck() {
     if (!doc) return;
