@@ -83,7 +83,24 @@ export type StructNode = {
   /** Detected abbreviations lacking an expansion. */
   abbreviations?: string[] | undefined;
   expansions?: Record<string, string> | undefined;
+  /** Replacement text announced instead of the raw glyphs (garbled or stylised text). */
+  actualText?: string | undefined;
+  /** Table summary, when type === "Table". */
+  tableSummary?: string | undefined;
+  /** Caption text attached to a table or figure. */
+  caption?: string | undefined;
+  /** Numbering style, when type === "L". */
+  listType?: ListType | undefined;
+  /** Which kind of page furniture this is, when type === "Artifact". */
+  artifactType?: ArtifactType | undefined;
+  /** Sampled text and background colours behind the measured contrast ratio. */
+  colors?: { fg: [number, number, number]; bg: [number, number, number] } | undefined;
+  /** Colour a remediator proposes back to the author, as #rrggbb. */
+  colorFix?: string | undefined;
+  /** Set when a human confirmed the element does not rely on colour alone. */
+  colorCueConfirmed?: boolean | undefined;
 };
+
 
 export type DocStructure = {
   nodes: StructNode[];
