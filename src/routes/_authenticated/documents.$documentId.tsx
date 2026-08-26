@@ -106,12 +106,77 @@ function EditorPage() {
   const [highlightMode, setHighlightMode] = useState(true);
   const [pending, setPending] = useState<TextSelection | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [docTitle, setDocTitle] = useState("");
   const [docLang, setDocLang] = useState("en");
+
+  // Undo / redo history of structure snapshots. Kept in a ref so taking a
+  // snapshot never re-renders; counts drive the button states.
+  const nodesRef = useRef<StructNode[]>([]);
+  const history = useRef<{ past: StructNode[][]; future: StructNode[][] }>({ past: [], future: [] });
+  const [historyDepth, setHistoryDepth] = useState({ past: 0, future: 0 });
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  const syncDepth = useCallback(() => {
+    setHistoryDepth({ past: history.current.past.length, future: history.current.future.length });
+  }, []);
+
+  /** Record the current structure before a change so it can be undone. */
+  const snapshot = useCallback(() => {
+    history.current.past.push(nodesRef.current);
+    if (history.current.past.length > 60) history.current.past.shift();
+    history.current.future = [];
+    syncDepth();
+  }, [syncDepth]);
+
+  const undo = useCallback(() => {
+    const previous = history.current.past.pop();
+    if (!previous) {
+      toast("Nothing left to undo", { duration: 1200 });
+      return;
+    }
+    history.current.future.push(nodesRef.current);
+    setNodes(previous);
+    setSelectedId(null);
+    setPending(null);
+    setDirty(true);
+    syncDepth();
+    toast("Undone", { duration: 1000 });
+  }, [syncDepth]);
+
+  const redo = useCallback(() => {
+    const next = history.current.future.pop();
+    if (!next) return;
+    history.current.past.push(nodesRef.current);
+    setNodes(next);
+    setSelectedId(null);
+    setDirty(true);
+    syncDepth();
+    toast("Redone", { duration: 1000 });
+  }, [syncDepth]);
+
+  // Auto-save is on by default but remembered per browser once switched off.
+  useEffect(() => {
+    const stored = window.localStorage.getItem("accesspdf:autosave");
+    if (stored === "off") setAutoSave(false);
+  }, []);
+
+  function changeAutoSave(next: boolean) {
+    setAutoSave(next);
+    window.localStorage.setItem("accesspdf:autosave", next ? "on" : "off");
+    toast(next ? "Auto-save on — changes save a moment after you stop." : "Auto-save off — remember ⌘/Ctrl + S.", {
+      duration: 2200,
+    });
+  }
 
   const document_ = useQuery({ queryKey: ["document", documentId], queryFn: () => fetchDocument(documentId) });
   const structure = useQuery({ queryKey: ["structure", documentId], queryFn: () => fetchStructure(documentId) });
