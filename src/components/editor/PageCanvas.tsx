@@ -127,7 +127,7 @@ export function PageCanvas({
     const picked: TextRun[] = [];
     for (const element of Array.from(layer.querySelectorAll<HTMLElement>("[data-run]"))) {
       if (!selection.containsNode(element, true)) continue;
-      const index = Number(element.dataset.run);
+      const index = Number(element.dataset["run"]);
       const run = runs.find((r) => r.index === index);
       if (run) picked.push(run);
     }
