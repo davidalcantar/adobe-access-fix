@@ -56,7 +56,6 @@ export function QuickStart({ projectId }: { projectId?: string }) {
   async function trySample() {
     if (busy || !user) return;
     try {
-      setProgress("Building a sample document…");
       const { buildSamplePdf } = await import("@/lib/demoPdf");
       const file = await buildSamplePdf();
       await start(file);
