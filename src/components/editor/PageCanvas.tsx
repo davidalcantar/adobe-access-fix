@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openDocument } from "@/lib/pdf/loader";
-import { nodeLabel, type StructNode } from "@/lib/structure";
+import { nodeLabel, tagTone, type StructNode } from "@/lib/structure";
+import type { RGB } from "@/lib/pdf/contrast";
 
 type Props = {
   bytes: ArrayBuffer | null;
@@ -13,6 +14,9 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   showOverlay: boolean;
+  /** When set, clicking the page samples a pixel instead of selecting elements. */
+  picking?: "fg" | "bg" | null;
+  onPickedColor?: (rgb: RGB) => void;
 };
 
 /**
@@ -28,6 +32,8 @@ export function PageCanvas({
   selectedId,
   onSelect,
   showOverlay,
+  picking = null,
+  onPickedColor,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scale, setScale] = useState(1);
@@ -75,6 +81,19 @@ export function PageCanvas({
     };
   }, [bytes, page]);
 
+  function sampleAt(event: React.MouseEvent<HTMLCanvasElement>) {
+    if (!picking || !onPickedColor) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d", { willReadFrequently: true });
+    if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = canvas.width / rect.width;
+    const x = Math.floor((event.clientX - rect.left) * dpr);
+    const y = Math.floor((event.clientY - rect.top) * dpr);
+    const data = ctx.getImageData(Math.max(0, x), Math.max(0, y), 1, 1).data;
+    onPickedColor([data[0] ?? 0, data[1] ?? 0, data[2] ?? 0]);
+  }
+
   const pageNodes = nodes.filter((n) => n.page === page);
   const pageHeightPt = dims.height / (scale || 1);
 
@@ -106,7 +125,17 @@ export function PageCanvas({
 
       <div className="flex-1 overflow-auto bg-muted/50 p-4">
         <div className="relative mx-auto w-fit shadow-sm">
-          <canvas ref={canvasRef} className="block rounded-sm bg-white" aria-label={`Page ${page} preview`} />
+          <canvas
+            ref={canvasRef}
+            onClick={sampleAt}
+            className={`block rounded-sm bg-white ${picking ? "cursor-crosshair" : ""}`}
+            aria-label={`Page ${page} preview`}
+          />
+          {picking ? (
+            <p className="absolute inset-x-0 -top-3 mx-auto w-fit rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+              Click the page to sample the {picking === "fg" ? "text" : "background"} colour
+            </p>
+          ) : null}
           {rendering ? (
             <span className="absolute inset-0 flex items-center justify-center bg-background/60 text-sm">
               <Loader2 className="size-5 animate-spin" aria-hidden="true" />
@@ -114,27 +143,26 @@ export function PageCanvas({
             </span>
           ) : null}
 
-          {showOverlay && dims.width
+          {showOverlay && dims.width && !picking
             ? pageNodes.map((node, index) => {
                 const [x, y, w, h] = node.bbox;
                 const selected = node.id === selectedId;
+                const tone = tagTone(node.type);
                 return (
                   <button
                     key={node.id}
                     type="button"
                     onClick={() => onSelect(node.id)}
-                    className={`absolute rounded-[2px] border-2 text-left transition-colors ${
-                      selected
-                        ? "border-primary bg-primary/15"
-                        : node.type === "Artifact" || node.decorative
-                          ? "border-muted-foreground/40 bg-muted-foreground/5 hover:bg-muted-foreground/15"
-                          : "border-accent/70 bg-accent/10 hover:bg-accent/25"
-                    }`}
+                    className={`absolute rounded-[2px] border-2 text-left transition-colors hover:brightness-95 ${
+                      selected ? "ring-2 ring-ring ring-offset-1" : ""
+                    } ${node.decorative ? "border-dashed" : ""}`}
                     style={{
                       left: x * scale,
                       top: (pageHeightPt - y - h) * scale,
                       width: Math.max(6, w * scale),
                       height: Math.max(6, h * scale),
+                      borderColor: tone.border,
+                      backgroundColor: selected ? "color-mix(in oklab, var(--color-primary) 20%, transparent)" : tone.fill,
                     }}
                     aria-current={selected ? "true" : undefined}
                   >
@@ -143,9 +171,7 @@ export function PageCanvas({
                     </span>
                     <span
                       aria-hidden="true"
-                      className={`absolute -top-2 -left-2 inline-flex min-w-5 items-center justify-center rounded px-1 text-[10px] font-semibold leading-4 ${
-                        selected ? "bg-primary text-primary-foreground" : "bg-foreground text-background"
-                      }`}
+                      className="absolute -top-2 -left-2 inline-flex min-w-5 items-center justify-center rounded bg-foreground px-1 font-mono text-[10px] font-semibold leading-4 text-background"
                     >
                       {node.type}
                     </span>
