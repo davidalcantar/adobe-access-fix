@@ -248,7 +248,8 @@ export function PageCanvas({
                     onClick={() => onSelect(node.id)}
                     className={`absolute rounded-[2px] border-2 text-left transition-colors hover:brightness-95 ${
                       selected ? "ring-2 ring-ring ring-offset-1" : ""
-                    } ${node.decorative ? "border-dashed" : ""}`}
+                    } ${node.decorative ? "border-dashed" : ""} ${textSelect ? "pointer-events-none" : ""}`}
+
                     style={{
                       left: x * scale,
                       top: (pageHeightPt - y - h) * scale,
