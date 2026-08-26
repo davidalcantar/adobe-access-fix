@@ -60,7 +60,7 @@ export function TagToolbar({ node, readOnly, onRetag, pendingText = null, onTagP
         <div key={group.label} className="flex items-center gap-1" role="group" aria-label={group.label}>
           <span className="sr-only">{group.label}</span>
           {group.types.map((type) => {
-            const active = node?.type === type;
+            const active = !pending && node?.type === type;
             const tone = tagTone(type);
             const key = shortcutFor(type);
             return (
@@ -70,14 +70,15 @@ export function TagToolbar({ node, readOnly, onRetag, pendingText = null, onTagP
                     type="button"
                     size="sm"
                     variant={active ? "default" : "outline"}
-                    disabled={!node || readOnly}
+                    disabled={(!node && !pending) || readOnly}
                     aria-pressed={active}
                     className="h-8 px-2 font-mono text-xs"
                     style={active ? undefined : { borderColor: tone.border }}
-                    onClick={() => node && onRetag(node.id, type)}
+                    onClick={() => apply(type)}
                   >
                     {type}
                   </Button>
+
                 </TooltipTrigger>
                 <TooltipContent>
                   {group.label}: {type}
