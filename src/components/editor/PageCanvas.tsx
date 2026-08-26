@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openDocument } from "@/lib/pdf/loader";
 import { extractTextRuns, joinRuns, unionBbox, type TextRun } from "@/lib/pdf/textlayer";
-import { nodeLabel, tagTone, type StructNode } from "@/lib/structure";
+import { nodeLabel, type StructNode } from "@/lib/structure";
+import { DEFAULT_TAG_PALETTE, toneFor, type TagPalette } from "@/lib/tagColors";
 import type { RGB } from "@/lib/pdf/contrast";
 
 export type TextSelection = {
