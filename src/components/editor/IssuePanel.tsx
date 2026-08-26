@@ -85,7 +85,7 @@ export function IssuePanel({ issues, selectedElementRef, onFocus, onSetState, re
                           <span className="text-xs text-muted-foreground">page {issue.page_number}</span>
                         ) : null}
                       </p>
-                      {rule ? <p className="mt-1.5 text-xs text-muted-foreground">{rule.how}</p> : null}
+                      {rule ? <p className="mt-1.5 text-xs text-muted-foreground">{rule.fix}</p> : null}
 
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {issue.element_ref ? (
