@@ -57,7 +57,7 @@ export async function analyzePdf(
     const hasTags = !!structTree && Array.isArray(structTree.children) && structTree.children.length > 0;
     if (hasTags) sawSourceTags = true;
 
-    const items = await readItems(page);
+    const items = await readItems(page as unknown as TextPage);
     const lines = groupLines(items);
     const bodySize = dominantSize(lines);
 
@@ -103,7 +103,7 @@ export async function analyzePdf(
     for (const t of tables) pageNodes.push(t.node);
 
     // --- images from the page's drawing operators
-    for (const img of await detectImages(page, pdfjs)) {
+    for (const img of await detectImages(page as unknown as OpsPage, pdfjs as unknown as { OPS: Record<string, number> })) {
       pageNodes.push({
         id: newId(),
         type: "Figure",
@@ -118,7 +118,7 @@ export async function analyzePdf(
     // --- annotations: links and form fields
     const annots = await page.getAnnotations({ intent: "display" }).catch(() => []);
     for (const a of annots as Record<string, unknown>[]) {
-      const rect = a.rect as number[] | undefined;
+      const rect = a["rect"] as number[] | undefined;
       if (!rect) continue;
       const bbox: [number, number, number, number] = [
         Math.min(rect[0]!, rect[2]!),
@@ -126,7 +126,7 @@ export async function analyzePdf(
         Math.abs(rect[2]! - rect[0]!),
         Math.abs(rect[3]! - rect[1]!),
       ];
-      if (a.subtype === "Link") {
+      if (a["subtype"] === "Link") {
         const covered = pageNodes.find((n) => n.type !== "Figure" && overlaps(n.bbox, bbox) > 0.4);
         pageNodes.push({
           id: newId(),
@@ -134,12 +134,12 @@ export async function analyzePdf(
           page: p,
           bbox,
           text: covered?.text?.slice(0, 160) ?? "",
-          href: (a.url as string) ?? (a.unsafeUrl as string) ?? "",
+          href: (a["url"] as string) ?? (a["unsafeUrl"] as string) ?? "",
           abbreviations: [],
         });
-      } else if (a.subtype === "Widget") {
-        const name = (a.fieldName as string) || "field";
-        const label = ((a.alternativeText as string) || "").trim() || null;
+      } else if (a["subtype"] === "Widget") {
+        const name = (a["fieldName"] as string) || "field";
+        const label = ((a["alternativeText"] as string) || "").trim() || null;
         formFields.push({ name, label, page: p });
         pageNodes.push({
           id: newId(),
@@ -158,7 +158,7 @@ export async function analyzePdf(
     sortReadingOrder(pageNodes, viewport.width);
 
     // --- contrast measurement against the rendered page
-    await measureContrast(page, viewport, pageNodes);
+    await measureContrast(page as unknown as RenderablePage, viewport, pageNodes);
 
     // --- adopt source tag types where the PDF already declares them
     if (hasTags) applySourceTags(structTree, pageNodes);
@@ -169,10 +169,10 @@ export async function analyzePdf(
 
   onProgress?.(97, "Compiling findings");
 
-  const title = typeof info.Title === "string" && info.Title.trim() ? info.Title.trim() : null;
-  const lang = typeof info.Language === "string" && info.Language.trim() ? info.Language.trim() : null;
+  const title = typeof info["Title"] === "string" && info["Title"].trim() ? info["Title"].trim() : null;
+  const lang = typeof info["Language"] === "string" && info["Language"].trim() ? info["Language"].trim() : null;
 
-  await doc.destroy();
+  await doc.cleanup();
 
   return {
     pageCount: pages.length,
@@ -196,34 +196,39 @@ function isBold(block: Line[]): boolean {
   return block.some((l) => l.items.some((i) => /bold|black|heavy|semib/i.test(i.fontName)));
 }
 
-async function readItems(page: {
-  getTextContent: (o: Record<string, unknown>) => Promise<{ items: unknown[] }>;
-}): Promise<RawItem[]> {
+type TextPage = { getTextContent: (o: Record<string, unknown>) => Promise<{ items: unknown[] }> };
+type OpsPage = { getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }> };
+type RenderablePage = {
+  getViewport: (o: { scale: number }) => { width: number; height: number };
+  render: (o: Record<string, unknown>) => { promise: Promise<void> };
+};
+
+async function readItems(page: TextPage): Promise<RawItem[]> {
   const content = await page.getTextContent({ includeMarkedContent: true, disableNormalization: false });
   const out: RawItem[] = [];
   let mcid: number | null = null;
   for (const raw of content.items) {
     const it = raw as Record<string, unknown>;
-    if (it.type === "beginMarkedContentProps") {
-      mcid = typeof it.id === "string" ? Number(it.id.split("_").pop()) : null;
+    if (it["type"] === "beginMarkedContentProps") {
+      mcid = typeof it["id"] === "string" ? Number(it["id"].split("_").pop()) : null;
       if (Number.isNaN(mcid)) mcid = null;
       continue;
     }
-    if (it.type === "endMarkedContent") {
+    if (it["type"] === "endMarkedContent") {
       mcid = null;
       continue;
     }
-    if (typeof it.str !== "string" || !it.str) continue;
-    const tr = it.transform as number[];
+    if (typeof it["str"] !== "string" || !it["str"]) continue;
+    const tr = it["transform"] as number[];
     const size = Math.abs(tr[3]!) || Math.hypot(tr[1]!, tr[3]!) || 10;
     out.push({
-      str: it.str,
+      str: it["str"],
       x: tr[4]!,
       y: tr[5]!,
-      w: (it.width as number) ?? 0,
-      h: (it.height as number) ?? size,
+      w: (it["width"] as number) ?? 0,
+      h: (it["height"] as number) ?? size,
       fontSize: size,
-      fontName: (it.fontName as string) ?? "",
+      fontName: (it["fontName"] as string) ?? "",
       mcid,
     });
   }
@@ -324,7 +329,7 @@ function columnStarts(line: Line): number[] {
   let prevEnd = -Infinity;
   const gapThreshold = Math.max(line.size * 1.4, 12);
   for (const it of line.items) {
-    if (!it.str.trim()) continue;
+    if (!it["str"].trim()) continue;
     if (it.x - prevEnd > gapThreshold) starts.push(it.x);
     prevEnd = it.x + it.w;
   }
@@ -347,11 +352,11 @@ function buildTable(rows: Line[], cols: number[], page: number): { node: StructN
   rows.forEach((line, r) => {
     const byCol = new Map<number, string[]>();
     for (const it of line.items) {
-      if (!it.str.trim()) continue;
+      if (!it["str"].trim()) continue;
       let idx = 0;
       for (let c = 0; c < cols.length; c += 1) if (it.x + 2 >= cols[c]!) idx = c;
       const list = byCol.get(idx) ?? [];
-      list.push(it.str);
+      list.push(it["str"]);
       byCol.set(idx, list);
     }
     for (const [c, parts] of byCol) {
@@ -398,7 +403,7 @@ function buildTable(rows: Line[], cols: number[], page: number): { node: StructN
 }
 
 async function detectImages(
-  page: { getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }> },
+  page: OpsPage,
   pdfjs: { OPS: Record<string, number> },
 ): Promise<{ bbox: [number, number, number, number] }[]> {
   const ops = await page.getOperatorList().catch(() => null);
@@ -419,14 +424,14 @@ async function detectImages(
 
   for (let i = 0; i < ops.fnArray.length; i += 1) {
     const fn = ops.fnArray[i]!;
-    if (fn === OPS.save) stack.push([...ctm]);
-    else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
-    else if (fn === OPS.transform) ctm = mul(ops.argsArray[i] as number[], ctm);
+    if (fn === OPS["save"]) stack.push([...ctm]);
+    else if (fn === OPS["restore"]) ctm = stack.pop() ?? ctm;
+    else if (fn === OPS["transform"]) ctm = mul(ops.argsArray[i] as number[], ctm);
     else if (
-      fn === OPS.paintImageXObject ||
-      fn === OPS.paintImageMaskXObject ||
-      fn === OPS.paintInlineImage ||
-      fn === OPS.paintJpegXObject
+      fn === OPS["paintImageXObject"] ||
+      fn === OPS["paintImageMaskXObject"] ||
+      fn === OPS["paintInlineImage"] ||
+      fn === OPS["paintJpegXObject"]
     ) {
       // The unit square maps through the CTM to the placed image rectangle.
       const xs = [ctm[4]!, ctm[4]! + ctm[0]!, ctm[4]! + ctm[2]!, ctm[4]! + ctm[0]! + ctm[2]!];
@@ -475,10 +480,7 @@ function sortReadingOrder(nodes: StructNode[], pageWidth: number) {
 }
 
 async function measureContrast(
-  page: {
-    getViewport: (o: { scale: number }) => { width: number; height: number };
-    render: (o: Record<string, unknown>) => { promise: Promise<void>; cancel?: () => void };
-  },
+  page: RenderablePage,
   baseViewport: { width: number; height: number },
   nodes: StructNode[],
 ) {
