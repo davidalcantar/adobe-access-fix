@@ -272,7 +272,18 @@ export function PageCanvas({
       </div>
 
       <div className="flex-1 overflow-auto bg-muted/50 p-4">
-        <div className="relative mx-auto w-fit shadow-sm" onMouseUp={reportSelection}>
+        <div
+          ref={frameRef}
+          className={`relative mx-auto w-fit shadow-sm ${lasso ? "cursor-crosshair select-none" : ""}`}
+          onMouseUp={(event) => {
+            if (lasso) endMarquee();
+            else reportSelection();
+          }}
+          onMouseDown={startMarquee}
+          onMouseMove={moveMarquee}
+          onMouseLeave={() => setMarquee(null)}
+        >
+
           <canvas
             ref={canvasRef}
             onClick={sampleAt}
