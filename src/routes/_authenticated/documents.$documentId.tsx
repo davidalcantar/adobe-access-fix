@@ -688,13 +688,70 @@ function EditorPage() {
             </Select>
             {!readOnly ? (
               <>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Undo the last change"
+                    title="Undo (⌘/Ctrl + Z)"
+                    onClick={undo}
+                    disabled={!historyDepth.past}
+                  >
+                    <Undo2 className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Redo the change you undid"
+                    title="Redo (⌘/Ctrl + Shift + Z)"
+                    onClick={redo}
+                    disabled={!historyDepth.future}
+                  >
+                    <Redo2 className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
+                  <span aria-live="polite" className="flex items-center gap-1.5 text-xs">
+                    {busy === "save" ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-hidden="true" />
+                        <span className="text-muted-foreground">Saving…</span>
+                      </>
+                    ) : dirty ? (
+                      <>
+                        <CloudOff className="size-3.5 text-warning" aria-hidden="true" />
+                        <span>Unsaved changes</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="size-3.5 text-success" aria-hidden="true" />
+                        <span className="text-muted-foreground">
+                          Saved{savedAt ? ` ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1.5 border-l border-border pl-2">
+                    <Switch
+                      id="autosave-toggle"
+                      checked={autoSave}
+                      onCheckedChange={changeAutoSave}
+                      aria-label="Auto-save"
+                    />
+                    <Label htmlFor="autosave-toggle" className="text-xs text-muted-foreground">
+                      Auto-save
+                    </Label>
+                  </span>
+                </div>
+
                 <Button variant="outline" size="sm" onClick={() => void save()} disabled={!dirty || busy !== null}>
                   {busy === "save" ? (
                     <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                   ) : (
                     <Save className="size-4" aria-hidden="true" />
                   )}
-                  <span>{dirty ? "Save changes" : "Saved"}</span>
+                  <span>Save now</span>
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => void recheck()} disabled={busy !== null}>
                   {busy === "audit" ? (
