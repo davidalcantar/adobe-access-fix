@@ -20,6 +20,8 @@ export type ShortcutHandlers = {
   onToggleHighlightMode: () => void;
   onToggleHelp: () => void;
   onSave: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
 };
 
 const isTypingTarget = (target: EventTarget | null) => {
@@ -41,6 +43,18 @@ export function useEditorShortcuts(handlers: ShortcutHandlers) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         handlers.onSave();
+        return;
+      }
+      // Undo / redo: ⌘Z and ⇧⌘Z (or Ctrl+Y).
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        if (event.shiftKey) handlers.onRedo();
+        else handlers.onUndo();
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        handlers.onRedo();
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -144,6 +158,8 @@ export const SHORTCUT_ROWS: { keys: string; action: string }[] = [
   { keys: "H", action: "Turn highlight mode on or off" },
   { keys: "V", action: "Show or hide the tag overlay" },
   { keys: ", / .", action: "Previous / next page" },
+  { keys: "Ctrl or ⌘ + Z", action: "Undo the last change" },
+  { keys: "Ctrl or ⌘ + Shift + Z", action: "Redo the change you undid" },
   { keys: "Ctrl or ⌘ + S", action: "Save your work" },
   { keys: "?", action: "Open this cheat sheet" },
 ];

@@ -1,14 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Download, FileDown, Loader2, RefreshCw, Save, ScanSearch } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CloudOff,
+  Download,
+  FileDown,
+  Loader2,
+  RefreshCw,
+  Redo2,
+  Save,
+  ScanSearch,
+  Undo2,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ScoreDial } from "@/components/ScoreDial";
 import { LevelMeter } from "@/components/editor/LevelMeter";
 import { TagToolbar } from "@/components/editor/TagToolbar";
 import { PageCanvas, type TextSelection } from "@/components/editor/PageCanvas";
 import { ShortcutHelp } from "@/components/editor/ShortcutHelp";
+import { ExportChecklist, buildPreflight } from "@/components/editor/ExportChecklist";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 
 import { StructureTree } from "@/components/editor/StructureTree";
@@ -93,12 +106,77 @@ function EditorPage() {
   const [highlightMode, setHighlightMode] = useState(true);
   const [pending, setPending] = useState<TextSelection | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [docTitle, setDocTitle] = useState("");
   const [docLang, setDocLang] = useState("en");
+
+  // Undo / redo history of structure snapshots. Kept in a ref so taking a
+  // snapshot never re-renders; counts drive the button states.
+  const nodesRef = useRef<StructNode[]>([]);
+  const history = useRef<{ past: StructNode[][]; future: StructNode[][] }>({ past: [], future: [] });
+  const [historyDepth, setHistoryDepth] = useState({ past: 0, future: 0 });
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  const syncDepth = useCallback(() => {
+    setHistoryDepth({ past: history.current.past.length, future: history.current.future.length });
+  }, []);
+
+  /** Record the current structure before a change so it can be undone. */
+  const snapshot = useCallback(() => {
+    history.current.past.push(nodesRef.current);
+    if (history.current.past.length > 60) history.current.past.shift();
+    history.current.future = [];
+    syncDepth();
+  }, [syncDepth]);
+
+  const undo = useCallback(() => {
+    const previous = history.current.past.pop();
+    if (!previous) {
+      toast("Nothing left to undo", { duration: 1200 });
+      return;
+    }
+    history.current.future.push(nodesRef.current);
+    setNodes(previous);
+    setSelectedId(null);
+    setPending(null);
+    setDirty(true);
+    syncDepth();
+    toast("Undone", { duration: 1000 });
+  }, [syncDepth]);
+
+  const redo = useCallback(() => {
+    const next = history.current.future.pop();
+    if (!next) return;
+    history.current.past.push(nodesRef.current);
+    setNodes(next);
+    setSelectedId(null);
+    setDirty(true);
+    syncDepth();
+    toast("Redone", { duration: 1000 });
+  }, [syncDepth]);
+
+  // Auto-save is on by default but remembered per browser once switched off.
+  useEffect(() => {
+    const stored = window.localStorage.getItem("accesspdf:autosave");
+    if (stored === "off") setAutoSave(false);
+  }, []);
+
+  function changeAutoSave(next: boolean) {
+    setAutoSave(next);
+    window.localStorage.setItem("accesspdf:autosave", next ? "on" : "off");
+    toast(next ? "Auto-save on — changes save a moment after you stop." : "Auto-save off — remember ⌘/Ctrl + S.", {
+      duration: 2200,
+    });
+  }
 
   const document_ = useQuery({ queryKey: ["document", documentId], queryFn: () => fetchDocument(documentId) });
   const structure = useQuery({ queryKey: ["structure", documentId], queryFn: () => fetchStructure(documentId) });
@@ -165,6 +243,7 @@ function EditorPage() {
 
   const applyPatch = useCallback(
     (id: string, patch: Partial<StructNode>, summary: string, aiAssisted = false) => {
+      snapshot();
       setNodes((current) => current.map((n) => (n.id === id ? { ...n, ...patch } : n)));
       setDirty(true);
       if (doc && user) {
@@ -180,11 +259,12 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [doc, user, queryClient, documentId],
+    [doc, user, queryClient, documentId, snapshot],
   );
 
   const moveNode = useCallback(
     (id: string, direction: -1 | 1) => {
+      snapshot();
       setNodes((current) => {
         const index = current.findIndex((n) => n.id === id);
         if (index < 0) return current;
@@ -210,13 +290,14 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [doc, user, queryClient, documentId],
+    [doc, user, queryClient, documentId, snapshot],
   );
 
   const removeNode = useCallback(
     (id: string) => {
       const node = nodes.find((n) => n.id === id);
       if (!node) return;
+      snapshot();
       setNodes((current) => current.filter((n) => n.id !== id));
       setSelectedId(null);
       setDirty(true);
@@ -232,7 +313,7 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [nodes, doc, user, queryClient, documentId],
+    [nodes, doc, user, queryClient, documentId, snapshot],
   );
 
   /**
@@ -251,6 +332,7 @@ function EditorPage() {
         fontSize: pending.fontSize,
         isLargeText: pending.fontSize >= 18 || pending.fontSize >= 14,
       };
+      snapshot();
       setNodes((current) => {
         const next = [...current];
         // Insert after the last element on the page that sits above it.
@@ -285,7 +367,7 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [pending, readOnly, doc, user, queryClient, documentId],
+    [pending, readOnly, doc, user, queryClient, documentId, snapshot],
   );
 
   const stepSelection = useCallback(
@@ -340,10 +422,15 @@ function EditorPage() {
     onSave: () => {
       if (!readOnly) void save();
     },
+    onUndo: () => {
+      if (!readOnly) undo();
+    },
+    onRedo: () => {
+      if (!readOnly) redo();
+    },
   });
 
-  async function save() {
-
+  async function save(silent = false) {
     if (!doc) return;
     setBusy("save");
     try {
@@ -354,7 +441,8 @@ function EditorPage() {
         .eq("id", doc.id);
       if (error) throw error;
       setDirty(false);
-      toast.success("Structure saved.");
+      setSavedAt(new Date());
+      if (!silent) toast.success("Structure saved.");
       void queryClient.invalidateQueries({ queryKey: ["document", documentId] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Save failed.");
@@ -362,6 +450,26 @@ function EditorPage() {
       setBusy(null);
     }
   }
+
+  // Auto-save: write a moment after the user stops editing, quietly.
+  useEffect(() => {
+    if (!autoSave || !dirty || readOnly || busy !== null || !doc) return;
+    const timer = setTimeout(() => {
+      void save(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSave, dirty, readOnly, busy, doc?.id, nodes, docTitle, docLang]);
+
+  // Warn before leaving with unsaved work when auto-save is off.
+  useEffect(() => {
+    if (!dirty || autoSave) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty, autoSave]);
 
   async function recheck() {
     if (!doc) return;
@@ -580,13 +688,70 @@ function EditorPage() {
             </Select>
             {!readOnly ? (
               <>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Undo the last change"
+                    title="Undo (⌘/Ctrl + Z)"
+                    onClick={undo}
+                    disabled={!historyDepth.past}
+                  >
+                    <Undo2 className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Redo the change you undid"
+                    title="Redo (⌘/Ctrl + Shift + Z)"
+                    onClick={redo}
+                    disabled={!historyDepth.future}
+                  >
+                    <Redo2 className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1">
+                  <span aria-live="polite" className="flex items-center gap-1.5 text-xs">
+                    {busy === "save" ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-hidden="true" />
+                        <span className="text-muted-foreground">Saving…</span>
+                      </>
+                    ) : dirty ? (
+                      <>
+                        <CloudOff className="size-3.5 text-warning" aria-hidden="true" />
+                        <span>Unsaved changes</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="size-3.5 text-success" aria-hidden="true" />
+                        <span className="text-muted-foreground">
+                          Saved{savedAt ? ` ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1.5 border-l border-border pl-2">
+                    <Switch
+                      id="autosave-toggle"
+                      checked={autoSave}
+                      onCheckedChange={changeAutoSave}
+                      aria-label="Auto-save"
+                    />
+                    <Label htmlFor="autosave-toggle" className="text-xs text-muted-foreground">
+                      Auto-save
+                    </Label>
+                  </span>
+                </div>
+
                 <Button variant="outline" size="sm" onClick={() => void save()} disabled={!dirty || busy !== null}>
                   {busy === "save" ? (
                     <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                   ) : (
                     <Save className="size-4" aria-hidden="true" />
                   )}
-                  <span>{dirty ? "Save changes" : "Saved"}</span>
+                  <span>Save now</span>
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => void recheck()} disabled={busy !== null}>
                   {busy === "audit" ? (
@@ -622,14 +787,33 @@ function EditorPage() {
               <span>Report</span>
             </Button>
             {!readOnly ? (
-              <Button size="sm" onClick={() => void exportPdf()} disabled={busy !== null || !bytes}>
-                {busy === "export" ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Download className="size-4" aria-hidden="true" />
-                )}
-                <span>Export PDF</span>
-              </Button>
+              <>
+                <Button size="sm" onClick={() => setExportOpen(true)} disabled={busy !== null || !bytes}>
+                  {busy === "export" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="size-4" aria-hidden="true" />
+                  )}
+                  <span>Export PDF</span>
+                </Button>
+                <ExportChecklist
+                  open={exportOpen}
+                  onOpenChange={setExportOpen}
+                  exporting={busy === "export"}
+                  preflight={buildPreflight({
+                    title: docTitle,
+                    language: docLang,
+                    score: doc.conformance_score,
+                    targetLevel: doc.target_level,
+                    issues: issues.data ?? [],
+                    levelPercent: targetEstimate?.percent ?? null,
+                  })}
+                  onConfirm={async () => {
+                    await exportPdf();
+                    setExportOpen(false);
+                  }}
+                />
+              </>
             ) : null}
           </div>
         </div>

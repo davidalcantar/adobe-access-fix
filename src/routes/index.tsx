@@ -131,8 +131,16 @@ function Landing() {
       </main>
 
       <footer className="border-t border-border py-8">
-        <div className="mx-auto max-w-6xl px-4 text-sm text-muted-foreground">
-          AccessPDF — WCAG 2.2 remediation for PDF documents.
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 text-sm text-muted-foreground">
+          <span>AccessPDF — WCAG 2.2 remediation for PDF documents.</span>
+          <nav aria-label="Legal" className="flex gap-4">
+            <Link to="/privacy" className="hover:text-foreground">
+              Privacy policy
+            </Link>
+            <Link to="/terms" className="hover:text-foreground">
+              Terms of service
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FileCheck2 } from "lucide-react";
@@ -190,6 +190,18 @@ function AuthPage() {
           <Button variant="outline" className="w-full" onClick={() => void google()} disabled={busy}>
             Continue with Google
           </Button>
+
+          <p className="mt-5 text-center text-xs text-muted-foreground">
+            By continuing you agree to our{" "}
+            <Link to="/terms" className="underline hover:text-foreground">
+              terms of service
+            </Link>{" "}
+            and{" "}
+            <Link to="/privacy" className="underline hover:text-foreground">
+              privacy policy
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </div>

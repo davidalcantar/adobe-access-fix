@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, UploadCloud } from "lucide-react";
+import { FlaskConical, Loader2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,6 +52,20 @@ export function QuickStart({ projectId }: { projectId?: string }) {
     }
   }
 
+  /** Generates a deliberately inaccessible one-page PDF so people can practise. */
+  async function trySample() {
+    if (busy || !user) return;
+    try {
+      const { buildSamplePdf } = await import("@/lib/demoPdf");
+      const file = await buildSamplePdf();
+      await start(file);
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not build the sample document.");
+      setProgress("");
+    }
+  }
+
   return (
     <section aria-labelledby="quick-start-heading" className="rounded-xl border border-border bg-card p-6">
       <h2 id="quick-start-heading" className="font-display text-lg font-semibold tracking-tight">
@@ -88,10 +102,20 @@ export function QuickStart({ projectId }: { projectId?: string }) {
           className="sr-only"
           onChange={(e) => void start(e.target.files?.[0])}
         />
-        <Button className="mt-4" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-          <span>{busy ? "Working…" : "Choose a PDF"}</span>
-        </Button>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <Button onClick={() => inputRef.current?.click()} disabled={busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+            <span>{busy ? "Working…" : "Choose a PDF"}</span>
+          </Button>
+          <Button variant="outline" onClick={() => void trySample()} disabled={busy}>
+            <FlaskConical className="size-4" aria-hidden="true" />
+            <span>Try a sample document</span>
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          The sample has the usual problems built in — no tags, a heading skip, grey text and a picture with no
+          description.
+        </p>
         {progress ? (
           <p aria-live="polite" className="mt-3 text-sm text-muted-foreground">
             {progress}
