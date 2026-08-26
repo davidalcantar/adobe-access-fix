@@ -85,7 +85,19 @@ export function IssuePanel({ issues, selectedElementRef, onFocus, onSetState, re
                           <span className="text-xs text-muted-foreground">page {issue.page_number}</span>
                         ) : null}
                       </p>
-                      {rule ? <p className="mt-1.5 text-xs text-muted-foreground">{rule.fix}</p> : null}
+                      {rule ? (
+                        <div className="mt-1.5 space-y-1 rounded-md border border-border bg-muted/40 p-2">
+                          <p className="text-xs">
+                            <span className="font-semibold">Why this matters: </span>
+                            {rule.why}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            <span className="font-semibold">What to do: </span>
+                            {rule.fix}
+                          </p>
+                        </div>
+                      ) : null}
+
 
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {issue.element_ref ? (
