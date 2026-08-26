@@ -2,8 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openDocument } from "@/lib/pdf/loader";
+import { extractTextRuns, joinRuns, unionBbox, type TextRun } from "@/lib/pdf/textlayer";
 import { nodeLabel, tagTone, type StructNode } from "@/lib/structure";
 import type { RGB } from "@/lib/pdf/contrast";
+
+export type TextSelection = {
+  text: string;
+  bbox: [number, number, number, number];
+  fontSize: number;
+  page: number;
+};
 
 type Props = {
   bytes: ArrayBuffer | null;
@@ -17,6 +25,9 @@ type Props = {
   /** When set, clicking the page samples a pixel instead of selecting elements. */
   picking?: "fg" | "bg" | null;
   onPickedColor?: (rgb: RGB) => void;
+  /** Enables the invisible, selectable text layer used for highlight-then-key tagging. */
+  textSelect?: boolean;
+  onTextSelection?: (selection: TextSelection | null) => void;
 };
 
 /**
@@ -34,11 +45,16 @@ export function PageCanvas({
   showOverlay,
   picking = null,
   onPickedColor,
+  textSelect = false,
+  onTextSelection,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [dims, setDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [rendering, setRendering] = useState(false);
+  const [runs, setRuns] = useState<TextRun[]>([]);
+
 
   useEffect(() => {
     if (!bytes) return;
