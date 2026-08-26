@@ -179,6 +179,72 @@ export function PageCanvas({
   const pageNodes = nodes.filter((n) => n.page === page);
   const pageHeightPt = dims.height / (scale || 1);
 
+  /** Screen-space rect of a node, in CSS pixels relative to the page frame. */
+  function rectOf(node: StructNode) {
+    const [x, y, w, h] = node.bbox;
+    return {
+      left: x * scale,
+      top: (pageHeightPt - y - h) * scale,
+      width: Math.max(6, w * scale),
+      height: Math.max(6, h * scale),
+    };
+  }
+
+  function framePoint(event: React.MouseEvent) {
+    const frame = frameRef.current;
+    if (!frame) return { x: 0, y: 0 };
+    const rect = frame.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function startMarquee(event: React.MouseEvent) {
+    if (!lasso || picking) return;
+    event.preventDefault();
+    const { x, y } = framePoint(event);
+    setMarquee({ x0: x, y0: y, x1: x, y1: y, additive: event.shiftKey || event.metaKey || event.ctrlKey });
+  }
+
+  function moveMarquee(event: React.MouseEvent) {
+    if (!marquee) return;
+    const { x, y } = framePoint(event);
+    setMarquee({ ...marquee, x1: x, y1: y });
+  }
+
+  function endMarquee() {
+    if (!marquee) return;
+    const box = {
+      left: Math.min(marquee.x0, marquee.x1),
+      top: Math.min(marquee.y0, marquee.y1),
+      right: Math.max(marquee.x0, marquee.x1),
+      bottom: Math.max(marquee.y0, marquee.y1),
+    };
+    const additive = marquee.additive;
+    setMarquee(null);
+    if (box.right - box.left < 4 && box.bottom - box.top < 4) {
+      onLassoSelect?.([], additive);
+      return;
+    }
+    const hits = pageNodes
+      .filter((node) => {
+        const r = rectOf(node);
+        return (
+          r.left < box.right && r.left + r.width > box.left && r.top < box.bottom && r.top + r.height > box.top
+        );
+      })
+      .map((node) => node.id);
+    onLassoSelect?.(hits, additive);
+  }
+
+  const marqueeBox = marquee
+    ? {
+        left: Math.min(marquee.x0, marquee.x1),
+        top: Math.min(marquee.y0, marquee.y1),
+        width: Math.abs(marquee.x1 - marquee.x0),
+        height: Math.abs(marquee.y1 - marquee.y0),
+      }
+    : null;
+
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
