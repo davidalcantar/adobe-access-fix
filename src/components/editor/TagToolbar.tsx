@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TAG_GROUPS, TAG_SHORTCUTS, tagTone, type StructNode, type TagType } from "@/lib/structure";
@@ -7,42 +6,56 @@ type Props = {
   node: StructNode | null;
   readOnly: boolean;
   onRetag: (id: string, type: TagType) => void;
+  /** Text highlighted on the page and waiting to become a new tag. */
+  pendingText?: string | null;
+  onTagPending?: (type: TagType) => void;
+  onClearPending?: () => void;
 };
 
 const shortcutFor = (type: TagType) =>
   Object.entries(TAG_SHORTCUTS).find(([, t]) => t === type)?.[0]?.toUpperCase();
 
 /**
- * One-click retagging for the selected element, grouped by tag family. Every
- * button is reachable by keyboard and mirrors a single-key shortcut.
+ * One-click retagging for the highlighted text or the selected element, grouped
+ * by tag family. Every button mirrors a single-key shortcut.
  */
-export function TagToolbar({ node, readOnly, onRetag }: Props) {
-  useEffect(() => {
-    if (!node || readOnly) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target as HTMLElement | null;
-      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
-      const tag = TAG_SHORTCUTS[event.key.toLowerCase()];
-      if (!tag || !node) return;
-      event.preventDefault();
-      onRetag(node.id, tag);
+export function TagToolbar({ node, readOnly, onRetag, pendingText = null, onTagPending, onClearPending }: Props) {
+  const pending = Boolean(pendingText && onTagPending);
+
+  function apply(type: TagType) {
+    if (pending) {
+      onTagPending?.(type);
+      return;
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [node, readOnly, onRetag]);
+    if (node) onRetag(node.id, type);
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-muted/40 px-3 py-2">
-      <p className="text-xs text-muted-foreground">
-        {node ? (
+    <div
+      className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-3 py-2 ${
+        pending ? "bg-primary/10" : "bg-muted/40"
+      }`}
+    >
+      <p className="text-xs text-muted-foreground" aria-live="polite">
+        {pending ? (
+          <>
+            <span className="font-semibold text-foreground">Press a key to tag:</span>{" "}
+            <span className="italic">“{pendingText!.slice(0, 60)}{pendingText!.length > 60 ? "…" : ""}”</span>
+          </>
+        ) : node ? (
           <>
             Retag <span className="font-mono">{node.type}</span> on page {node.page}
           </>
         ) : (
-          "Select an element to retag it"
+          "Highlight text on the page, or select an element, then press a key"
         )}
       </p>
+      {pending ? (
+        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onClearPending}>
+          Clear highlight (Esc)
+        </Button>
+      ) : null}
+
       {TAG_GROUPS.map((group) => (
         <div key={group.label} className="flex items-center gap-1" role="group" aria-label={group.label}>
           <span className="sr-only">{group.label}</span>
