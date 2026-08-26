@@ -313,7 +313,7 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [nodes, doc, user, queryClient, documentId],
+    [nodes, doc, user, queryClient, documentId, snapshot],
   );
 
   /**
@@ -366,7 +366,7 @@ function EditorPage() {
         }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
       }
     },
-    [pending, readOnly, doc, user, queryClient, documentId],
+    [pending, readOnly, doc, user, queryClient, documentId, snapshot],
   );
 
   const stepSelection = useCallback(
