@@ -29,7 +29,10 @@ type Props = {
   /** Enables the invisible, selectable text layer used for highlight-then-key tagging. */
   textSelect?: boolean;
   onTextSelection?: (selection: TextSelection | null) => void;
+  /** User-configurable colour coding per tag type. */
+  palette?: TagPalette;
 };
+
 
 /**
  * Renders the page and overlays the structure elements assigned to it, so a
