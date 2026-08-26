@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { loadPdfJs } from "@/lib/pdf/loader";
+import { openDocument } from "@/lib/pdf/loader";
 import { nodeLabel, type StructNode } from "@/lib/structure";
 
 type Props = {
@@ -42,8 +42,7 @@ export function PageCanvas({
     (async () => {
       setRendering(true);
       try {
-        const pdfjs = await loadPdfJs();
-        const doc = await pdfjs.getDocument({ data: copy }).promise;
+        const doc = await openDocument(copy);
         const pdfPage = await doc.getPage(Math.min(Math.max(page, 1), doc.numPages));
         const base = pdfPage.getViewport({ scale: 1 });
         const targetWidth = 720;
