@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { FileText, FolderPlus, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { UploadDocument } from "@/components/UploadDocument";
+import { QuickStart } from "@/components/QuickStart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +114,10 @@ function Dashboard() {
           </Dialog>
         </div>
 
+        <div className="mt-8">
+          <QuickStart />
+        </div>
+
         {projects.isLoading ? (
           <p className="mt-10 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden="true" /> Loading projects…
@@ -172,10 +177,15 @@ function Dashboard() {
           </ul>
         ) : (
           <div className="mt-10 rounded-xl border border-dashed border-border p-10 text-center">
-            <h2 className="font-display text-lg font-semibold">Create your first project</h2>
+            <h2 className="font-display text-lg font-semibold">No projects yet</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-              A project is where a document, its findings, its edit history and your reviewers live together.
+              Drop a PDF above and we\'ll set up a project for you automatically, or create one yourself to organise
+              work and invite reviewers.
             </p>
+            <Button className="mt-5" variant="outline" onClick={() => setOpen(true)}>
+              <FolderPlus className="size-4" aria-hidden="true" />
+              <span>Create a project</span>
+            </Button>
           </div>
         )}
       </div>

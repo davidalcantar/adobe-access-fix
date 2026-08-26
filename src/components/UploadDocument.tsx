@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,18 +16,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { analyzePdf } from "@/lib/pdf/analyze";
-import { auditDocument } from "@/lib/pdf/audit";
-import { conformanceScore } from "@/lib/pdf/audit";
+import { ingestPdf } from "@/lib/ingest";
 import { LEVELS, LEVEL_LABELS, type Level } from "@/lib/wcag";
-import { BUCKET, type ProjectRow } from "@/lib/docApi";
-import type { Json } from "@/integrations/supabase/types";
+import type { ProjectRow } from "@/lib/docApi";
 
 export function UploadDocument({ project }: { project: ProjectRow }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [level, setLevel] = useState<Level>("AA");
@@ -38,83 +36,18 @@ export function UploadDocument({ project }: { project: ProjectRow }) {
     if (!file || !user) return;
     setBusy(true);
     try {
-      setProgress("Reading the file…");
-      const bytes = await file.arrayBuffer();
-
-      setProgress("Analysing pages, structure and contrast…");
-      const analysis = await analyzePdf(bytes);
-
-      setProgress("Running WCAG checks…");
-      const findings = auditDocument(analysis.nodes, {
-        targetLevel: level,
-        isTagged: analysis.isTagged,
-        title: analysis.sourceTitle,
-        language: analysis.sourceLang,
-        pageCount: analysis.pageCount,
-        hasOutline: analysis.hasOutline,
+      const { documentId, findingCount } = await ingestPdf({
+        file,
+        level,
+        projectId: project.id,
+        userId: user.id,
+        onProgress: setProgress,
       });
-
-      setProgress("Uploading…");
-      const path = `${project.id}/${crypto.randomUUID()}.pdf`;
-      const upload = await supabase.storage.from(BUCKET).upload(path, file, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-      if (upload.error) throw upload.error;
-
-      const score = conformanceScore(findings.map((f) => ({ severity: f.severity, state: "open" })));
-
-      const { data: doc, error: docError } = await supabase
-        .from("documents")
-        .insert({
-          project_id: project.id,
-          uploaded_by: user.id,
-          filename: file.name,
-          storage_path: path,
-          byte_size: file.size,
-          page_count: analysis.pageCount,
-          target_level: level,
-          status: "in_review",
-          is_tagged: analysis.isTagged,
-          doc_title: analysis.sourceTitle,
-          doc_language: analysis.sourceLang ?? "en",
-          conformance_score: score,
-          last_audit_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-      if (docError) throw docError;
-
-      const { error: structError } = await supabase.from("document_structure").insert({
-        document_id: doc.id,
-        project_id: project.id,
-        tree: analysis.nodes as unknown as Json,
-      });
-      if (structError) throw structError;
-
-      if (findings.length) {
-        const { error: issueError } = await supabase.from("document_issues").insert(
-          findings.map((f) => ({
-            document_id: doc.id,
-            project_id: project.id,
-            rule_id: f.ruleId,
-            criterion: f.criterion,
-            criterion_name: f.criterionName,
-            level: f.level,
-            severity: f.severity,
-            title: f.title,
-            detail: f.detail,
-            page_number: f.page,
-            element_ref: f.elementRef,
-          })),
-        );
-        if (issueError) throw issueError;
-      }
-
-      toast.success(`${findings.length} finding${findings.length === 1 ? "" : "s"} to review.`);
+      await queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast.success(`${findingCount} finding${findingCount === 1 ? "" : "s"} to review.`);
       setOpen(false);
       setFile(null);
-      void navigate({ to: "/documents/$documentId", params: { documentId: doc.id } });
+      void navigate({ to: "/documents/$documentId", params: { documentId } });
     } catch (error) {
       console.error(error);
       toast.error(error instanceof Error ? error.message : "Could not process that PDF.");
