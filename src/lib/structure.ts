@@ -15,8 +15,32 @@ export const TAG_TYPES = [
   "Caption",
   "Link",
   "Form",
+  "BlockQuote",
+  "Note",
+  "Reference",
+  "Code",
+  "Formula",
+  "TOC",
+  "TOCI",
   "Artifact",
 ] as const;
+
+/** Groups used by the tagging toolbar and the overlay legend. */
+export const TAG_GROUPS: { label: string; types: TagType[] }[] = [
+  { label: "Headings", types: ["H1", "H2", "H3", "H4", "H5", "H6"] },
+  { label: "Text", types: ["P", "BlockQuote", "Note", "Reference", "Code", "Formula"] },
+  { label: "Lists", types: ["L", "LI"] },
+  { label: "Objects", types: ["Figure", "Table", "Caption", "Link", "Form"] },
+  { label: "Navigation", types: ["TOC", "TOCI"] },
+  { label: "Non-content", types: ["Artifact"] },
+];
+
+export const ARTIFACT_TYPES = ["Pagination", "Header", "Footer", "Layout", "Background"] as const;
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+
+export const LIST_TYPES = ["Unordered", "Ordered", "Description"] as const;
+export type ListType = (typeof LIST_TYPES)[number];
+
 
 export type TagType = (typeof TAG_TYPES)[number];
 
@@ -59,7 +83,24 @@ export type StructNode = {
   /** Detected abbreviations lacking an expansion. */
   abbreviations?: string[] | undefined;
   expansions?: Record<string, string> | undefined;
+  /** Replacement text announced instead of the raw glyphs (garbled or stylised text). */
+  actualText?: string | undefined;
+  /** Table summary, when type === "Table". */
+  tableSummary?: string | undefined;
+  /** Caption text attached to a table or figure. */
+  caption?: string | undefined;
+  /** Numbering style, when type === "L". */
+  listType?: ListType | undefined;
+  /** Which kind of page furniture this is, when type === "Artifact". */
+  artifactType?: ArtifactType | undefined;
+  /** Sampled text and background colours behind the measured contrast ratio. */
+  colors?: { fg: [number, number, number]; bg: [number, number, number] } | undefined;
+  /** Colour a remediator proposes back to the author, as #rrggbb. */
+  colorFix?: string | undefined;
+  /** Set when a human confirmed the element does not rely on colour alone. */
+  colorCueConfirmed?: boolean | undefined;
 };
+
 
 export type DocStructure = {
   nodes: StructNode[];
@@ -98,3 +139,33 @@ export function nodeLabel(node: StructNode): string {
 export function newId(prefix = "n"): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+/** Overlay / badge colour token per tag family. Always paired with the tag name in text. */
+export function tagTone(type: TagType): { border: string; fill: string; text: string } {
+  if (isHeading(type)) return { border: "var(--color-primary)", fill: "color-mix(in oklab, var(--color-primary) 14%, transparent)", text: "var(--color-primary)" };
+  if (type === "Figure") return { border: "var(--color-accent)", fill: "color-mix(in oklab, var(--color-accent) 14%, transparent)", text: "var(--color-accent-foreground)" };
+  if (type === "Table") return { border: "var(--color-warning)", fill: "color-mix(in oklab, var(--color-warning) 14%, transparent)", text: "var(--color-foreground)" };
+  if (type === "Link") return { border: "var(--color-success)", fill: "color-mix(in oklab, var(--color-success) 14%, transparent)", text: "var(--color-foreground)" };
+  if (type === "Artifact") return { border: "var(--color-muted-foreground)", fill: "transparent", text: "var(--color-muted-foreground)" };
+  return { border: "var(--color-ring)", fill: "color-mix(in oklab, var(--color-ring) 10%, transparent)", text: "var(--color-foreground)" };
+}
+
+/** Keyboard shortcut -> tag, used by the tagging toolbar. */
+export const TAG_SHORTCUTS: Record<string, TagType> = {
+  "1": "H1",
+  "2": "H2",
+  "3": "H3",
+  "4": "H4",
+  "5": "H5",
+  "6": "H6",
+  p: "P",
+  l: "L",
+  i: "LI",
+  f: "Figure",
+  t: "Table",
+  c: "Caption",
+  k: "Link",
+  m: "Form",
+  q: "BlockQuote",
+  a: "Artifact",
+};

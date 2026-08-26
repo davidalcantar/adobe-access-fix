@@ -1,5 +1,5 @@
 import { PDFDocument, PDFName, PDFNull, PDFNumber, PDFString, type PDFRef } from "pdf-lib";
-import type { StructNode } from "../structure";
+import { isHeading, type StructNode } from "../structure";
 
 export type ExportOptions = {
   title: string;
@@ -30,6 +30,13 @@ const ROLE: Record<string, string> = {
   Caption: "Caption",
   Link: "Link",
   Form: "Form",
+  BlockQuote: "BlockQuote",
+  Note: "Note",
+  Reference: "Reference",
+  Code: "Code",
+  Formula: "Formula",
+  TOC: "TOC",
+  TOCI: "TOCI",
 };
 
 /**
@@ -90,6 +97,16 @@ export async function exportRemediatedPdf(
     if (node.alt?.trim()) dict["Alt"] = PDFString.of(node.alt.trim());
     if (node.longDesc?.trim()) dict["ActualText"] = PDFString.of(node.longDesc.trim());
     if (node.lang?.trim()) dict["Lang"] = PDFString.of(node.lang.trim());
+    if (node.actualText?.trim()) dict["ActualText"] = PDFString.of(node.actualText.trim());
+    const expansion = Object.entries(node.expansions ?? {})[0];
+    if (expansion) dict["E"] = PDFString.of(expansion[1]);
+    if (node.type === "Table" && node.tableSummary?.trim()) {
+      dict["A"] = ctx.obj({ O: PDFName.of("Table"), Summary: PDFString.of(node.tableSummary.trim()) });
+    }
+    if (node.type === "L" && node.listType) {
+      const listNumbering = { Unordered: "Disc", Ordered: "Decimal", Description: "None" }[node.listType];
+      dict["A"] = ctx.obj({ O: PDFName.of("List"), ListNumbering: PDFName.of(listNumbering) });
+    }
     if (node.type === "Form" && node.fieldLabel?.trim()) dict["T"] = PDFString.of(node.fieldLabel.trim());
     if (node.type === "Link" && node.text.trim()) dict["Alt"] = PDFString.of(node.text.trim());
 
@@ -220,10 +237,43 @@ export async function exportRemediatedPdf(
   );
 
   doc.catalog.set(PDFName.of("StructTreeRoot"), structTreeRootRef);
+
+  // Bookmark outline, built from the heading tags so long documents are navigable.
+  const headings = options.nodes.filter((n) => isHeading(n.type) && n.text.trim());
+  if (headings.length) {
+    const outlineRef = ctx.nextRef();
+    const itemRefs = headings.map(() => ctx.nextRef());
+    headings.forEach((node, i) => {
+      const page = pages[Math.min(Math.max(node.page - 1, 0), pages.length - 1)];
+      const dict: Record<string, unknown> = {
+        Title: PDFString.of(node.text.trim().slice(0, 200)),
+        Parent: outlineRef,
+      };
+      if (page) dict["Dest"] = [page.ref, PDFName.of("XYZ"), PDFNull, PDFNumber.of(node.bbox[1] + node.bbox[3]), PDFNull];
+      const prev = itemRefs[i - 1];
+      const next = itemRefs[i + 1];
+      if (prev) dict["Prev"] = prev;
+      if (next) dict["Next"] = next;
+      ctx.assign(itemRefs[i]!, ctx.obj(dict as never));
+    });
+    ctx.assign(
+      outlineRef,
+      ctx.obj({
+        Type: PDFName.of("Outlines"),
+        First: itemRefs[0]!,
+        Last: itemRefs[itemRefs.length - 1]!,
+        Count: PDFNumber.of(itemRefs.length),
+      } as never),
+    );
+    doc.catalog.set(PDFName.of("Outlines"), outlineRef);
+    doc.catalog.set(PDFName.of("PageMode"), PDFName.of("UseOutlines"));
+  }
+
   doc.catalog.set(
     PDFName.of("ViewerPreferences"),
     ctx.obj({ DisplayDocTitle: true } as never),
   );
+
 
   const bytes = await doc.save({ useObjectStreams: false });
   return { bytes, mappedElements: mapped, skeletonElements: skeleton };

@@ -50,6 +50,8 @@ export function UploadDocument({ project }: { project: ProjectRow }) {
         isTagged: analysis.isTagged,
         title: analysis.sourceTitle,
         language: analysis.sourceLang,
+        pageCount: analysis.pageCount,
+        hasOutline: analysis.hasOutline,
       });
 
       setProgress("Uploading…");

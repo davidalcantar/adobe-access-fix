@@ -80,3 +80,74 @@ export function measureRegionContrast(
     bg: bg.color,
   };
 }
+
+export type RGB = [number, number, number];
+
+export function toHex([r, g, b]: RGB): string {
+  return `#${[r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")}`;
+}
+
+export function fromHex(hex: string): RGB {
+  const clean = hex.replace("#", "").trim();
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean.padEnd(6, "0");
+  return [
+    parseInt(full.slice(0, 2), 16) || 0,
+    parseInt(full.slice(2, 4), 16) || 0,
+    parseInt(full.slice(4, 6), 16) || 0,
+  ];
+}
+
+/** WCAG floor for the given text size and level. */
+export function requiredRatio(level: "AA" | "AAA", large: boolean): number {
+  if (level === "AA") return large ? 3 : 4.5;
+  return large ? 4.5 : 7;
+}
+
+export type ContrastVerdict = {
+  ratio: number;
+  aa: boolean;
+  aaa: boolean;
+  /** 1.4.11 non-text contrast, e.g. field borders and icon strokes. */
+  nonText: boolean;
+  requiredAA: number;
+  requiredAAA: number;
+};
+
+export function judgeContrast(fg: RGB, bg: RGB, large: boolean): ContrastVerdict {
+  const ratio = Math.round(contrastRatio(fg, bg) * 100) / 100;
+  const requiredAA = requiredRatio("AA", large);
+  const requiredAAA = requiredRatio("AAA", large);
+  return {
+    ratio,
+    aa: ratio >= requiredAA,
+    aaa: ratio >= requiredAAA,
+    nonText: ratio >= 3,
+    requiredAA,
+    requiredAAA,
+  };
+}
+
+/**
+ * Nudges the foreground darker or lighter — whichever direction the background
+ * allows — until it clears `target`, keeping the original hue. Returns null when
+ * no shade of this colour can reach the target against that background.
+ */
+export function suggestForeground(fg: RGB, bg: RGB, target: number): RGB | null {
+  const bgLum = relativeLuminance(...bg);
+  const directions: number[] = bgLum > 0.35 ? [-1, 1] : [1, -1];
+  for (const dir of directions) {
+    let best: RGB | null = null;
+    for (let step = 0; step <= 100; step += 1) {
+      const amount = step / 100;
+      const candidate = fg.map((v) =>
+        dir < 0 ? Math.round(v * (1 - amount)) : Math.round(v + (255 - v) * amount),
+      ) as RGB;
+      if (contrastRatio(candidate, bg) >= target) {
+        best = candidate;
+        break;
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}

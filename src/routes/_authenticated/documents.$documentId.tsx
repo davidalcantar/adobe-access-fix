@@ -5,10 +5,14 @@ import { toast } from "sonner";
 import { ArrowLeft, Download, FileDown, Loader2, RefreshCw, Save, ScanSearch } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ScoreDial } from "@/components/ScoreDial";
+import { LevelMeter } from "@/components/editor/LevelMeter";
+import { TagToolbar } from "@/components/editor/TagToolbar";
 import { PageCanvas } from "@/components/editor/PageCanvas";
 import { StructureTree } from "@/components/editor/StructureTree";
 import { Inspector } from "@/components/editor/Inspector";
 import { IssuePanel } from "@/components/editor/IssuePanel";
+import { levelPassEstimates } from "@/lib/pdf/audit";
+import { toHex, type RGB } from "@/lib/pdf/contrast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +84,7 @@ function EditorPage() {
   const [dirty, setDirty] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pickingColor, setPickingColor] = useState<"fg" | "bg" | null>(null);
   const [showOverlay, setShowOverlay] = useState(true);
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -253,6 +258,8 @@ function EditorPage() {
         isTagged: doc.is_tagged,
         title: docTitle,
         language: docLang,
+        pageCount: doc.page_count,
+        hasOutline: true,
       });
       const result = await syncFindings(doc, findings);
       toast.success(`${result.count} finding${result.count === 1 ? "" : "s"} · score ${result.score}`);
@@ -403,6 +410,8 @@ function EditorPage() {
   }
 
   const openCount = (issues.data ?? []).filter((i) => i.state === "open").length;
+  const estimates = levelPassEstimates(issues.data ?? []);
+  const targetEstimate = estimates.find((e) => e.level === doc.target_level);
 
   return (
     <AppShell wide>
@@ -422,7 +431,18 @@ function EditorPage() {
               {myRole ? ` · you are ${myRole}` : ""}
             </p>
           </div>
-          <ScoreDial score={doc.conformance_score} />
+          <div className="flex items-center gap-3">
+            <ScoreDial score={doc.conformance_score} />
+            {targetEstimate ? (
+              <p className="text-xs">
+                <span className="font-display text-base font-semibold tabular-nums">{targetEstimate.percent}%</span>
+                <span className="block text-muted-foreground">
+                  likely to pass {doc.target_level}
+                  {targetEstimate.passes ? "" : ` · ${targetEstimate.blockers} open`}
+                </span>
+              </p>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={doc.target_level} onValueChange={(v) => void changeLevel(v as Level)}>
               <SelectTrigger className="w-44" aria-label="Conformance target">
@@ -503,6 +523,11 @@ function EditorPage() {
         </section>
 
         <section aria-label="Page preview" className="max-h-[calc(100dvh-8.5rem)] border-b border-border lg:border-b-0">
+          <TagToolbar
+            node={selected}
+            readOnly={readOnly}
+            onRetag={(id, type) => applyPatch(id, { type }, `Retagged to ${type}`)}
+          />
           <PageCanvas
             bytes={bytes}
             nodes={nodes}
@@ -515,6 +540,17 @@ function EditorPage() {
             selectedId={selectedId}
             onSelect={setSelectedId}
             showOverlay={showOverlay}
+            picking={pickingColor}
+            onPickedColor={(rgb: RGB) => {
+              if (!selected || !pickingColor) return;
+              const current = selected.colors ?? { fg: [17, 17, 17] as RGB, bg: [255, 255, 255] as RGB };
+              applyPatch(
+                selected.id,
+                { colors: { ...current, [pickingColor]: rgb } as { fg: RGB; bg: RGB } },
+                `Sampled ${pickingColor === "fg" ? "text" : "background"} colour ${toHex(rgb)}`,
+              );
+              setPickingColor(null);
+            }}
           />
         </section>
 
@@ -532,6 +568,9 @@ function EditorPage() {
 
             <div className="min-h-0 flex-1 overflow-auto">
               <TabsContent value="issues" className="m-0">
+                <div className="border-b border-border p-3">
+                  <LevelMeter estimates={estimates} target={doc.target_level} />
+                </div>
                 <IssuePanel
                   issues={issues.data ?? []}
                   selectedElementRef={selectedId}
@@ -551,6 +590,8 @@ function EditorPage() {
                   documentTitle={docTitle}
                   readOnly={readOnly}
                   cropNode={cropNode}
+                  onPickColor={(which) => setPickingColor((prev) => (prev === which ? null : which))}
+                  pickingColor={pickingColor}
                   onChange={applyPatch}
                 />
               </TabsContent>

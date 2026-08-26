@@ -1,4 +1,4 @@
-import { RULES, levelsInScope, severityWeight, type Level } from "../wcag";
+import { RULES, levelRank, levelsInScope, severityWeight, type Level, type Severity } from "../wcag";
 import { headingLevel, isHeading, type Finding, type StructNode } from "../structure";
 
 export type DocMeta = {
@@ -8,6 +8,9 @@ export type DocMeta = {
   language: string | null;
   /** Reading order the inference produced, to detect manual correction. */
   inferredOrder?: string[] | undefined;
+  pageCount?: number | undefined;
+  /** True when the source PDF already carries a bookmark outline. */
+  hasOutline?: boolean | undefined;
 };
 
 function finding(ruleId: string, detail: string, page: number | null, ref: string | null): Finding {
@@ -168,7 +171,7 @@ export function auditDocument(nodes: StructNode[], meta: DocMeta): Finding[] {
   }
 
   // ---- colour as the only cue (heuristic prompt for a human decision)
-  const coloured = content.filter((n) => n.contrast != null && n.contrast < 12 && n.type === "P");
+  const coloured = content.filter((n) => n.contrast != null && n.contrast < 12 && n.type === "P" && !n.colorCueConfirmed);
   if (coloured.length > 2) {
     push(
       "color-only",
@@ -196,6 +199,149 @@ export function auditDocument(nodes: StructNode[], meta: DocMeta): Finding[] {
     }
   }
 
+  // ---- lists
+  const flat = nodes.filter((n) => n.type !== "Artifact");
+  for (let i = 0; i < flat.length; i += 1) {
+    const n = flat[i]!;
+    if (n.type !== "LI") continue;
+    // An LI is well-formed when an L precedes it before any non-list element.
+    let inList = false;
+    for (let j = i - 1; j >= 0; j -= 1) {
+      const prev = flat[j]!;
+      if (prev.type === "L") {
+        inList = true;
+        break;
+      }
+      if (prev.type !== "LI") break;
+    }
+    if (!inList) push("list-structure", `List item on page ${n.page} is not inside an L element.`, n.page, n.id);
+  }
+  for (const l of nodes.filter((n) => n.type === "L")) {
+    if (!l.listType) push("list-type", `List on page ${l.page} has no numbering style set.`, l.page, l.id);
+  }
+
+  // ---- empty tags
+  for (const n of content) {
+    if (n.type === "Figure" || n.type === "Table" || n.type === "Form") continue;
+    if (!n.text.trim() && !n.alt?.trim() && !n.actualText?.trim()) {
+      push("empty-tag", `${n.type} on page ${n.page} contains no text.`, n.page, n.id);
+    }
+  }
+
+  // ---- single H1
+  const h1s = content.filter((n) => n.type === "H1");
+  if (content.length > 6 && h1s.length !== 1) {
+    push(
+      "heading-h1",
+      h1s.length === 0 ? "No H1 was found; the document has no top-level title heading." : `${h1s.length} H1 elements were found; keep one.`,
+      h1s[1]?.page ?? null,
+      h1s[1]?.id ?? null,
+    );
+  }
+
+  // ---- captions
+  for (let i = 0; i < content.length; i += 1) {
+    const n = content[i]!;
+    if (n.type !== "Caption") continue;
+    const neighbours = [content[i - 1], content[i + 1]];
+    if (!neighbours.some((x) => x && (x.type === "Table" || x.type === "Figure"))) {
+      push("caption-orphan", `Caption on page ${n.page} is not adjacent to a table or figure.`, n.page, n.id);
+    }
+  }
+
+  // ---- table shape and summary
+  for (const t of nodes.filter((n) => n.type === "Table")) {
+    const cells = t.cells ?? [];
+    if (cells.length) {
+      const counts = new Map<number, number>();
+      for (const c of cells) counts.set(c.row, (counts.get(c.row) ?? 0) + 1);
+      const widths = [...new Set(counts.values())];
+      if (widths.length > 1) {
+        push(
+          "table-irregular",
+          `Table on page ${t.page} has rows of ${widths.sort((a, b) => a - b).join(", ")} cells.`,
+          t.page,
+          t.id,
+        );
+      }
+    }
+    const big = (t.rowCount ?? 0) > 6 || (t.colCount ?? 0) > 4;
+    if (big && !t.tableSummary?.trim()) {
+      push("table-summary", `Table on page ${t.page} (${t.rowCount ?? "?"}x${t.colCount ?? "?"}) has no summary.`, t.page, t.id);
+    }
+  }
+
+  // ---- glyph mapping / scanned pages
+  const GARBLED = /[\uFFFD]|(?:[^\p{L}\p{N}\s\p{P}]{3,})/u;
+  for (const n of content) {
+    if (n.type === "Figure" || n.type === "Table") continue;
+    if (n.text.length > 8 && GARBLED.test(n.text) && !n.actualText?.trim()) {
+      push("actual-text", `Text on page ${n.page} extracts as unreadable characters.`, n.page, n.id);
+    }
+  }
+  const pageCount = meta.pageCount ?? Math.max(...nodes.map((n) => n.page), 1);
+  for (let p = 1; p <= pageCount; p += 1) {
+    const onPage = nodes.filter((n) => n.page === p);
+    if (!onPage.length) continue;
+    const textLength = onPage.reduce((sum, n) => sum + n.text.trim().length, 0);
+    const hasBigImage = onPage.some((n) => n.type === "Figure" && n.bbox[2] * n.bbox[3] > 150000);
+    if (hasBigImage && textLength < 40) {
+      push("scanned-page", `Page ${p} carries a full-page image and almost no extractable text.`, p, null);
+    }
+  }
+
+  // ---- repeated page furniture still inside the reading order
+  const repeats = new Map<string, StructNode[]>();
+  for (const n of content) {
+    const key = n.text.trim().replace(/\d+/g, "#").toLowerCase();
+    if (key.length < 3 || key.length > 90) continue;
+    const list = repeats.get(key) ?? [];
+    list.push(n);
+    repeats.set(key, list);
+  }
+  for (const [, list] of repeats) {
+    const pages = new Set(list.map((n) => n.page));
+    if (pages.size >= 3 && pages.size >= pageCount * 0.5) {
+      push(
+        "artifact-furniture",
+        `"${list[0]!.text.trim().slice(0, 60)}" repeats on ${pages.size} pages and is still tagged as content.`,
+        list[0]!.page,
+        list[0]!.id,
+      );
+    }
+  }
+
+  // ---- duplicate link labels
+  const linkLabels = new Map<string, Set<string>>();
+  for (const l of nodes.filter((n) => n.type === "Link")) {
+    const key = l.text.trim().toLowerCase();
+    if (!key) continue;
+    const set = linkLabels.get(key) ?? new Set<string>();
+    set.add(l.href ?? "");
+    linkLabels.set(key, set);
+  }
+  for (const [label, targets] of linkLabels) {
+    if (targets.size > 1) {
+      push("link-duplicate", `${targets.size} links are labelled "${label}" but point to different destinations.`);
+    }
+  }
+
+  // ---- bookmark outline
+  if (!meta.hasOutline && pageCount >= 10) {
+    push(
+      "bookmarks",
+      headings.length
+        ? `The ${pageCount}-page document has no outline; ${headings.length} headings are available to build one on export.`
+        : `The ${pageCount}-page document has no outline and no headings to build one from.`,
+    );
+  }
+
+  // ---- non-text contrast on form fields
+  for (const f of nodes.filter((n) => n.type === "Form")) {
+    if (f.contrast != null && f.contrast >= 3) continue;
+    push("non-text-contrast", `Field "${f.fieldLabel || f.text || "unnamed"}" on page ${f.page} needs a 3:1 boundary against the page.`, f.page, f.id);
+  }
+
   return out;
 }
 
@@ -214,4 +360,47 @@ export function conformanceScore(issues: { severity: string; state: string }[]):
   }
   if (!total) return 100;
   return Math.max(0, Math.round(((total - open) / total) * 100));
+}
+
+
+export type LevelEstimate = {
+  level: Level;
+  /** Weighted percentage of the checks in scope for this level that now pass. */
+  percent: number;
+  total: number;
+  open: number;
+  blockers: number;
+  passes: boolean;
+};
+
+type ScoredIssue = { level: string; severity: string; state: string };
+
+/**
+ * Per-level pass estimate. Level AA includes the A criteria, AAA includes both,
+ * mirroring how WCAG conformance actually stacks. A level only "passes" when no
+ * issue in its scope is still open — the percentage shows how close it is.
+ */
+export function levelPassEstimates(issues: ScoredIssue[]): LevelEstimate[] {
+  return (["A", "AA", "AAA"] as Level[]).map((level) => {
+    const scope = issues.filter((i) => levelRank(i.level as Level) <= levelRank(level));
+    let total = 0;
+    let open = 0;
+    let blockers = 0;
+    for (const i of scope) {
+      const w = severityWeight(i.severity as Severity);
+      total += w;
+      if (i.state === "open") {
+        open += w;
+        blockers += 1;
+      }
+    }
+    return {
+      level,
+      total,
+      open,
+      blockers,
+      percent: total === 0 ? 100 : Math.max(0, Math.round(((total - open) / total) * 100)),
+      passes: blockers === 0,
+    };
+  });
 }

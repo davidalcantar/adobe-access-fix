@@ -7,10 +7,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { suggestRemediation } from "@/lib/ai.functions";
-import { TAG_TYPES, type StructNode, type TableCell, type TagType } from "@/lib/structure";
+import {
+  ARTIFACT_TYPES,
+  LIST_TYPES,
+  TAG_GROUPS,
+  TAG_TYPES,
+  type ArtifactType,
+  type ListType,
+  type StructNode,
+  type TableCell,
+  type TagType,
+} from "@/lib/structure";
+import { ColorChecker } from "./ColorChecker";
 
 type Props = {
   node: StructNode | null;
@@ -19,10 +38,13 @@ type Props = {
   readOnly: boolean;
   /** Renders a PNG data URL of the node's region on the page, for AI context. */
   cropNode: (node: StructNode) => Promise<string | null>;
+  /** Eyedropper handoff to the page canvas. */
+  onPickColor: (which: "fg" | "bg") => void;
+  pickingColor: "fg" | "bg" | null;
   onChange: (id: string, patch: Partial<StructNode>, summary: string, aiAssisted?: boolean) => void;
 };
 
-export function Inspector({ node, neighbourText, documentTitle, readOnly, cropNode, onChange }: Props) {
+export function Inspector({ node, neighbourText, documentTitle, readOnly, cropNode, onPickColor, pickingColor, onChange }: Props) {
   const suggest = useServerFn(suggestRemediation);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -140,10 +162,15 @@ export function Inspector({ node, neighbourText, documentTitle, readOnly, cropNo
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TAG_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
+              {TAG_GROUPS.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.types.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
@@ -343,6 +370,120 @@ export function Inspector({ node, neighbourText, documentTitle, readOnly, cropNo
         </div>
       ) : null}
 
+      {node.type === "L" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="node-list-type">List numbering</Label>
+          <Select
+            value={node.listType ?? ""}
+            onValueChange={(v) => onChange(node.id, { listType: v as ListType }, `Set list numbering to ${v}`)}
+            disabled={readOnly}
+          >
+            <SelectTrigger id="node-list-type">
+              <SelectValue placeholder="Choose a style" />
+            </SelectTrigger>
+            <SelectContent>
+              {LIST_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Ordered lists are announced with their numbers; description lists pair terms with definitions.
+          </p>
+        </div>
+      ) : null}
+
+      {node.type === "Artifact" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="node-artifact-type">Artifact kind</Label>
+          <Select
+            value={node.artifactType ?? ""}
+            onValueChange={(v) => onChange(node.id, { artifactType: v as ArtifactType }, `Set artifact kind to ${v}`)}
+            disabled={readOnly}
+          >
+            <SelectTrigger id="node-artifact-type">
+              <SelectValue placeholder="Choose a kind" />
+            </SelectTrigger>
+            <SelectContent>
+              {ARTIFACT_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
+      {node.type === "Table" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="node-table-summary">Table summary</Label>
+          <Textarea
+            id="node-table-summary"
+            rows={2}
+            value={node.tableSummary ?? ""}
+            disabled={readOnly}
+            onChange={(e) => onChange(node.id, { tableSummary: e.target.value }, "Edited table summary")}
+          />
+          <p className="text-xs text-muted-foreground">
+            One sentence describing how the table is organised. Expected at AAA for complex tables.
+          </p>
+        </div>
+      ) : null}
+
+      {node.type === "Table" || node.type === "Figure" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="node-caption">Caption text</Label>
+          <Input
+            id="node-caption"
+            value={node.caption ?? ""}
+            disabled={readOnly}
+            onChange={(e) => onChange(node.id, { caption: e.target.value }, "Edited caption")}
+          />
+        </div>
+      ) : null}
+
+      {node.type !== "Figure" && node.type !== "Artifact" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="node-actual-text">Replacement text</Label>
+          <Textarea
+            id="node-actual-text"
+            rows={2}
+            value={node.actualText ?? ""}
+            disabled={readOnly}
+            onChange={(e) => onChange(node.id, { actualText: e.target.value }, "Edited replacement text")}
+          />
+          <p className="text-xs text-muted-foreground">
+            Spoken instead of the raw characters. Use it for stylised type, ligatures or logos set as text.
+          </p>
+        </div>
+      ) : null}
+
+      {node.abbreviations?.length ? (
+        <div className="space-y-1.5">
+          <Label>Abbreviation expansions</Label>
+          {node.abbreviations.map((abbr) => (
+            <div key={abbr} className="flex items-center gap-2">
+              <span className="w-20 shrink-0 font-mono text-xs">{abbr}</span>
+              <Input
+                aria-label={`Expansion for ${abbr}`}
+                value={node.expansions?.[abbr] ?? ""}
+                disabled={readOnly}
+                onChange={(e) =>
+                  onChange(
+                    node.id,
+                    { expansions: { ...(node.expansions ?? {}), [abbr]: e.target.value } },
+                    `Expanded ${abbr}`,
+                  )
+                }
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="space-y-1.5">
         <Label htmlFor="node-lang">Language override</Label>
         <Input
@@ -358,6 +499,14 @@ export function Inspector({ node, neighbourText, documentTitle, readOnly, cropNo
       </div>
 
       {contrastNote()}
+
+      <ColorChecker
+        node={node}
+        readOnly={readOnly}
+        onPick={onPickColor}
+        picking={pickingColor}
+        onChange={(id, patch, summary) => onChange(id, patch, summary)}
+      />
     </div>
   );
 }
