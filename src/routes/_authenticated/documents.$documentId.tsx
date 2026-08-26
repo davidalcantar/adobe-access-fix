@@ -11,6 +11,7 @@ import { PageCanvas } from "@/components/editor/PageCanvas";
 import { StructureTree } from "@/components/editor/StructureTree";
 import { Inspector } from "@/components/editor/Inspector";
 import { IssuePanel } from "@/components/editor/IssuePanel";
+import { PagePatch } from "@/components/editor/PagePatch";
 import { levelPassEstimates } from "@/lib/pdf/audit";
 import { toHex, type RGB } from "@/lib/pdf/contrast";
 import { Badge } from "@/components/ui/badge";
@@ -262,7 +263,7 @@ function EditorPage() {
         hasOutline: true,
       });
       const result = await syncFindings(doc, findings);
-      toast.success(`${result.count} finding${result.count === 1 ? "" : "s"} · score ${result.score}`);
+      toast.success(`${result.count} finding${result.count === 1 ? "" : "s"} · Accessibility Score ${result.score}`);
       void queryClient.invalidateQueries({ queryKey: ["issues", documentId] });
       void queryClient.invalidateQueries({ queryKey: ["document", documentId] });
     } catch (error) {
@@ -432,7 +433,13 @@ function EditorPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <ScoreDial score={doc.conformance_score} />
+            <div className="flex items-center gap-2">
+              <ScoreDial score={doc.conformance_score} />
+              <p className="text-xs font-medium leading-tight">
+                Accessibility
+                <span className="block text-muted-foreground">Score</span>
+              </p>
+            </div>
             {targetEstimate ? (
               <p className="text-xs">
                 <span className="font-display text-base font-semibold tabular-nums">{targetEstimate.percent}%</span>
@@ -474,6 +481,25 @@ function EditorPage() {
                   )}
                   <span>Re-run checks</span>
                 </Button>
+                {user ? (
+                  <PagePatch
+                    doc={doc}
+                    bytes={bytes}
+                    nodes={nodes}
+                    userId={user.id}
+                    page={page}
+                    disabled={busy !== null}
+                    onApplied={(nextNodes, targetPage) => {
+                      setNodes(nextNodes);
+                      setSelectedId(null);
+                      setPage(targetPage);
+                      setDirty(false);
+                      void queryClient.invalidateQueries({ queryKey: ["document", documentId] });
+                      void queryClient.invalidateQueries({ queryKey: ["structure", documentId] });
+                      void queryClient.invalidateQueries({ queryKey: ["edits", documentId] });
+                    }}
+                  />
+                ) : null}
               </>
             ) : null}
             <Button variant="outline" size="sm" onClick={exportReport}>
