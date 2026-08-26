@@ -20,7 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { analyzePdf } from "@/lib/pdf/analyze";
 import { auditDocument } from "@/lib/pdf/audit";
 import { conformanceScore } from "@/lib/pdf/audit";
-import { LEVELS, type Level } from "@/lib/wcag";
+import { LEVELS, LEVEL_LABELS, type Level } from "@/lib/wcag";
 import { BUCKET, type ProjectRow } from "@/lib/docApi";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -48,8 +48,8 @@ export function UploadDocument({ project }: { project: ProjectRow }) {
       const findings = auditDocument(analysis.nodes, {
         targetLevel: level,
         isTagged: analysis.isTagged,
-        title: analysis.title,
-        language: analysis.language,
+        title: analysis.sourceTitle,
+        language: analysis.sourceLang,
       });
 
       setProgress("Uploading…");
@@ -67,15 +67,15 @@ export function UploadDocument({ project }: { project: ProjectRow }) {
         .insert({
           project_id: project.id,
           uploaded_by: user.id,
-          file_name: file.name,
+          filename: file.name,
           storage_path: path,
           byte_size: file.size,
           page_count: analysis.pageCount,
           target_level: level,
           status: "in_review",
           source_tagged: analysis.isTagged,
-          doc_title: analysis.title,
-          doc_language: analysis.language ?? "en",
+          doc_title: analysis.sourceTitle,
+          doc_language: analysis.sourceLang ?? "en",
           conformance_score: score,
           last_audit_at: new Date().toISOString(),
         })
@@ -157,8 +157,8 @@ export function UploadDocument({ project }: { project: ProjectRow }) {
               </SelectTrigger>
               <SelectContent>
                 {LEVELS.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    WCAG 2.2 {l.id} — {l.label}
+                  <SelectItem key={l} value={l}>
+                    WCAG 2.2 {l} — {LEVEL_LABELS[l]}
                   </SelectItem>
                 ))}
               </SelectContent>

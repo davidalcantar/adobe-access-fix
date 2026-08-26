@@ -153,7 +153,7 @@ function Dashboard() {
                             params={{ documentId: doc.id }}
                             className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
                           >
-                            {doc.file_name}
+                            {doc.filename}
                           </Link>
                           <Badge variant="outline">{doc.target_level}</Badge>
                           <span className="text-xs text-muted-foreground">{doc.page_count} pp</span>
