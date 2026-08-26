@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, Copy, Pipette, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,7 @@ function Swatch({ color, label }: { color: RGB; label: string }) {
   );
 }
 
-function Verdict({ ok, children }: { ok: boolean; children: string }) {
+function Verdict({ ok, children }: { ok: boolean; children: ReactNode }) {
   return (
     <Badge variant={ok ? "default" : "destructive"} className="gap-1">
       {ok ? <Check className="size-3" aria-hidden="true" /> : <X className="size-3" aria-hidden="true" />}
