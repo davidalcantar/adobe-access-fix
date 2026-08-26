@@ -158,6 +158,8 @@ export const SHORTCUT_ROWS: { keys: string; action: string }[] = [
   { keys: "H", action: "Turn highlight mode on or off" },
   { keys: "V", action: "Show or hide the tag overlay" },
   { keys: ", / .", action: "Previous / next page" },
+  { keys: "Ctrl or ⌘ + Z", action: "Undo the last change" },
+  { keys: "Ctrl or ⌘ + Shift + Z", action: "Redo the change you undid" },
   { keys: "Ctrl or ⌘ + S", action: "Save your work" },
   { keys: "?", action: "Open this cheat sheet" },
 ];
