@@ -25,7 +25,7 @@ export type TableCell = {
   col: number;
   text: string;
   isHeader: boolean;
-  scope?: "Row" | "Column" | "Both";
+  scope?: "Row" | "Column" | "Both" | undefined;
 };
 
 /** A node in the document's logical structure. Array order IS the reading order. */
@@ -36,35 +36,35 @@ export type StructNode = {
   /** [x, y, width, height] in PDF user space, origin bottom-left. */
   bbox: [number, number, number, number];
   text: string;
-  alt?: string;
-  longDesc?: string;
-  lang?: string;
-  decorative?: boolean;
+  alt?: string | undefined;
+  longDesc?: string | undefined;
+  lang?: string | undefined;
+  decorative?: boolean | undefined;
   /** Measured contrast ratio of the text against its sampled background. */
-  contrast?: number;
-  fontSize?: number;
-  isLargeText?: boolean;
+  contrast?: number | undefined;
+  fontSize?: number | undefined;
+  isLargeText?: boolean | undefined;
   /** Link destination, when type === "Link". */
-  href?: string;
+  href?: string | undefined;
   /** Field label, when type === "Form". */
-  fieldLabel?: string;
+  fieldLabel?: string | undefined;
   /** Present when type === "Table". */
-  cells?: TableCell[];
-  rowCount?: number;
-  colCount?: number;
+  cells?: TableCell[] | undefined;
+  rowCount?: number | undefined;
+  colCount?: number | undefined;
   /** True when this node came from the source PDF's own tag tree. */
-  fromSource?: boolean;
+  fromSource?: boolean | undefined;
   /** Marked-content id in the source page, when known. */
-  mcid?: number;
+  mcid?: number | undefined;
   /** Detected abbreviations lacking an expansion. */
-  abbreviations?: string[];
-  expansions?: Record<string, string>;
+  abbreviations?: string[] | undefined;
+  expansions?: Record<string, string> | undefined;
 };
 
 export type DocStructure = {
   nodes: StructNode[];
   /** Reading order the auto-tagger inferred, used to detect manual reordering. */
-  inferredOrder?: string[];
+  inferredOrder?: string[] | undefined;
 };
 
 export type Finding = {
