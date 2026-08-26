@@ -332,10 +332,25 @@ export function PageCanvas({
             </span>
           ) : null}
 
+          {marqueeBox ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute rounded-sm border-2 border-primary bg-primary/15"
+              style={marqueeBox}
+            />
+          ) : null}
+
+          {lasso && !marquee ? (
+            <p className="absolute inset-x-0 -top-3 mx-auto w-fit rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+              Drag a box to select elements · hold Shift to add
+            </p>
+          ) : null}
+
           {showOverlay && dims.width && !picking
             ? pageNodes.map((node, index) => {
                 const [x, y, w, h] = node.bbox;
                 const selected = node.id === selectedId;
+                const multi = multiSelectedIds.includes(node.id);
                 const tone = toneFor(palette, node.type);
                 return (
                   <button
@@ -343,8 +358,8 @@ export function PageCanvas({
                     type="button"
                     onClick={() => onSelect(node.id)}
                     className={`absolute rounded-[2px] border-2 text-left transition-colors hover:brightness-95 ${
-                      selected ? "ring-2 ring-ring ring-offset-1" : ""
-                    } ${node.decorative ? "border-dashed" : ""} ${textSelect ? "pointer-events-none" : ""}`}
+                      selected || multi ? "ring-2 ring-ring ring-offset-1" : ""
+                    } ${node.decorative ? "border-dashed" : ""} ${textSelect || lasso ? "pointer-events-none" : ""}`}
 
                     style={{
                       left: x * scale,
@@ -352,8 +367,12 @@ export function PageCanvas({
                       width: Math.max(6, w * scale),
                       height: Math.max(6, h * scale),
                       borderColor: tone.border,
-                      backgroundColor: selected ? "color-mix(in oklab, var(--color-primary) 20%, transparent)" : tone.fill,
+                      backgroundColor:
+                        selected || multi
+                          ? "color-mix(in oklab, var(--color-primary) 20%, transparent)"
+                          : tone.fill,
                     }}
+
                     aria-current={selected ? "true" : undefined}
                   >
                     <span className="sr-only">
