@@ -787,14 +787,33 @@ function EditorPage() {
               <span>Report</span>
             </Button>
             {!readOnly ? (
-              <Button size="sm" onClick={() => void exportPdf()} disabled={busy !== null || !bytes}>
-                {busy === "export" ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Download className="size-4" aria-hidden="true" />
-                )}
-                <span>Export PDF</span>
-              </Button>
+              <>
+                <Button size="sm" onClick={() => setExportOpen(true)} disabled={busy !== null || !bytes}>
+                  {busy === "export" ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="size-4" aria-hidden="true" />
+                  )}
+                  <span>Export PDF</span>
+                </Button>
+                <ExportChecklist
+                  open={exportOpen}
+                  onOpenChange={setExportOpen}
+                  exporting={busy === "export"}
+                  preflight={buildPreflight({
+                    title: docTitle,
+                    language: docLang,
+                    score: doc.conformance_score,
+                    targetLevel: doc.target_level,
+                    issues: issues.data ?? [],
+                    levelPercent: targetEstimate?.percent ?? null,
+                  })}
+                  onConfirm={async () => {
+                    await exportPdf();
+                    setExportOpen(false);
+                  }}
+                />
+              </>
             ) : null}
           </div>
         </div>
