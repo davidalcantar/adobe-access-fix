@@ -1,14 +1,27 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Download, FileDown, Loader2, RefreshCw, Save, ScanSearch } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CloudOff,
+  Download,
+  FileDown,
+  Loader2,
+  RefreshCw,
+  Redo2,
+  Save,
+  ScanSearch,
+  Undo2,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { ScoreDial } from "@/components/ScoreDial";
 import { LevelMeter } from "@/components/editor/LevelMeter";
 import { TagToolbar } from "@/components/editor/TagToolbar";
 import { PageCanvas, type TextSelection } from "@/components/editor/PageCanvas";
 import { ShortcutHelp } from "@/components/editor/ShortcutHelp";
+import { ExportChecklist, buildPreflight } from "@/components/editor/ExportChecklist";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 
 import { StructureTree } from "@/components/editor/StructureTree";
