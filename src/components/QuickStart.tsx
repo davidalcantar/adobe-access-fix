@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, UploadCloud } from "lucide-react";
+import { FlaskConical, Loader2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -48,6 +48,21 @@ export function QuickStart({ projectId }: { projectId?: string }) {
       console.error(error);
       toast.error(error instanceof Error ? error.message : "Could not process that PDF.");
     } finally {
+      setProgress("");
+    }
+  }
+
+  /** Generates a deliberately inaccessible one-page PDF so people can practise. */
+  async function trySample() {
+    if (busy || !user) return;
+    try {
+      setProgress("Building a sample document…");
+      const { buildSamplePdf } = await import("@/lib/demoPdf");
+      const file = await buildSamplePdf();
+      await start(file);
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not build the sample document.");
       setProgress("");
     }
   }
