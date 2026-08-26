@@ -88,10 +88,20 @@ export function QuickStart({ projectId }: { projectId?: string }) {
           className="sr-only"
           onChange={(e) => void start(e.target.files?.[0])}
         />
-        <Button className="mt-4" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-          <span>{busy ? "Working…" : "Choose a PDF"}</span>
-        </Button>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <Button onClick={() => inputRef.current?.click()} disabled={busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+            <span>{busy ? "Working…" : "Choose a PDF"}</span>
+          </Button>
+          <Button variant="outline" onClick={() => void trySample()} disabled={busy}>
+            <FlaskConical className="size-4" aria-hidden="true" />
+            <span>Try a sample document</span>
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          The sample has the usual problems built in — no tags, a heading skip, grey text and a picture with no
+          description.
+        </p>
         {progress ? (
           <p aria-live="polite" className="mt-3 text-sm text-muted-foreground">
             {progress}
