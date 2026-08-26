@@ -15,8 +15,32 @@ export const TAG_TYPES = [
   "Caption",
   "Link",
   "Form",
+  "BlockQuote",
+  "Note",
+  "Reference",
+  "Code",
+  "Formula",
+  "TOC",
+  "TOCI",
   "Artifact",
 ] as const;
+
+/** Groups used by the tagging toolbar and the overlay legend. */
+export const TAG_GROUPS: { label: string; types: TagType[] }[] = [
+  { label: "Headings", types: ["H1", "H2", "H3", "H4", "H5", "H6"] },
+  { label: "Text", types: ["P", "BlockQuote", "Note", "Reference", "Code", "Formula"] },
+  { label: "Lists", types: ["L", "LI"] },
+  { label: "Objects", types: ["Figure", "Table", "Caption", "Link", "Form"] },
+  { label: "Navigation", types: ["TOC", "TOCI"] },
+  { label: "Non-content", types: ["Artifact"] },
+];
+
+export const ARTIFACT_TYPES = ["Pagination", "Header", "Footer", "Layout", "Background"] as const;
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+
+export const LIST_TYPES = ["Unordered", "Ordered", "Description"] as const;
+export type ListType = (typeof LIST_TYPES)[number];
+
 
 export type TagType = (typeof TAG_TYPES)[number];
 
