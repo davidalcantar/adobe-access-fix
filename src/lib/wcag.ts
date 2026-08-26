@@ -3,6 +3,12 @@ export type Severity = "critical" | "serious" | "moderate" | "minor";
 
 export const LEVELS: Level[] = ["A", "AA", "AAA"];
 
+export const LEVEL_LABELS: Record<Level, string> = {
+  A: "Minimum",
+  AA: "Standard for most policies",
+  AAA: "Enhanced",
+};
+
 /** Levels that are in scope when the document targets `target`. */
 export function levelsInScope(target: Level): Level[] {
   if (target === "A") return ["A"];
