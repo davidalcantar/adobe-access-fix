@@ -235,7 +235,115 @@ function EditorPage() {
     [nodes, doc, user, queryClient, documentId],
   );
 
+  /**
+   * Turns the text a remediator highlighted on the page into a tagged element,
+   * inserted at the right spot in the reading order for that page.
+   */
+  const tagPending = useCallback(
+    (type: TagType) => {
+      if (!pending || readOnly) return;
+      const node: StructNode = {
+        id: newId(),
+        type,
+        page: pending.page,
+        bbox: pending.bbox,
+        text: pending.text,
+        fontSize: pending.fontSize,
+        isLargeText: pending.fontSize >= 18 || pending.fontSize >= 14,
+      };
+      setNodes((current) => {
+        const next = [...current];
+        // Insert after the last element on the page that sits above it.
+        let insertAt = next.length;
+        const pageIndexes = next
+          .map((n, i) => ({ n, i }))
+          .filter((entry) => entry.n.page === pending.page);
+        if (pageIndexes.length) {
+          const below = pageIndexes.find((entry) => entry.n.bbox[1] < node.bbox[1]);
+          insertAt = below ? below.i : pageIndexes[pageIndexes.length - 1]!.i + 1;
+        } else {
+          const laterPage = next.findIndex((n) => n.page > pending.page);
+          insertAt = laterPage >= 0 ? laterPage : next.length;
+        }
+        next.splice(insertAt, 0, node);
+        return next;
+      });
+      setSelectedId(node.id);
+      setPending(null);
+      setDirty(true);
+      window.getSelection()?.removeAllRanges();
+      toast.success(`Tagged as ${type}`, { duration: 1200 });
+      if (doc && user) {
+        void logEdit({
+          documentId: doc.id,
+          projectId: doc.project_id,
+          userId: user.id,
+          editType: "element",
+          summary: `Tagged highlighted text as ${type}`,
+          elementRef: node.id,
+          after: node as never,
+        }).then(() => queryClient.invalidateQueries({ queryKey: ["edits", documentId] }));
+      }
+    },
+    [pending, readOnly, doc, user, queryClient, documentId],
+  );
+
+  const stepSelection = useCallback(
+    (direction: -1 | 1) => {
+      const list = nodes.filter((n) => n.page === page);
+      if (!list.length) return;
+      const index = list.findIndex((n) => n.id === selectedId);
+      const next = index < 0 ? (direction === 1 ? 0 : list.length - 1) : Math.min(list.length - 1, Math.max(0, index + direction));
+      setSelectedId(list[next]!.id);
+    },
+    [nodes, page, selectedId],
+  );
+
+  useEditorShortcuts({
+    enabled: !readOnly && !pickingColor,
+    hasPending: Boolean(pending),
+    hasSelection: Boolean(selectedId),
+    onTagPending: tagPending,
+    onRetagSelected: (type) => {
+      if (selectedId) applyPatch(selectedId, { type }, `Retagged to ${type}`);
+    },
+    onClearPending: () => {
+      setPending(null);
+      window.getSelection()?.removeAllRanges();
+    },
+    onStepSelection: stepSelection,
+    onMoveOrder: (direction) => {
+      if (selectedId) moveNode(selectedId, direction);
+    },
+    onToggleDecorative: () => {
+      if (!selected) return;
+      applyPatch(
+        selected.id,
+        { decorative: !selected.decorative },
+        selected.decorative ? "Marked as content" : "Marked as decorative",
+      );
+    },
+    onDeleteSelected: () => {
+      if (selectedId) removeNode(selectedId);
+    },
+    onStepPage: (direction) => {
+      setPage((current) => Math.min(Math.max(1, current + direction), doc?.page_count ?? current));
+      setSelectedId(null);
+      setPending(null);
+    },
+    onToggleOverlay: () => setShowOverlay((v) => !v),
+    onToggleHighlightMode: () => {
+      setHighlightMode((v) => !v);
+      setPending(null);
+    },
+    onToggleHelp: () => setHelpOpen((v) => !v),
+    onSave: () => {
+      if (!readOnly) void save();
+    },
+  });
+
   async function save() {
+
     if (!doc) return;
     setBusy("save");
     try {
