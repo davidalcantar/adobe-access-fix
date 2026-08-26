@@ -66,7 +66,7 @@ export function buildReportHtml(
   <p class="muted">${escape(doc.filename)} · ${doc.page_count} pages · target WCAG 2.2 Level ${escape(doc.target_level)} · generated ${new Date().toLocaleString()}</p>
 
   <div class="summary">
-    <div class="stat"><strong>${doc.conformance_score}</strong>Conformance score</div>
+    <div class="stat"><strong>${doc.conformance_score}</strong>Accessibility Score</div>
     <div class="stat"><strong>${open.length}</strong>Open findings</div>
     <div class="stat"><strong>${fixed.length}</strong>Fixed</div>
     <div class="stat"><strong>${waived.length}</strong>Waived with justification</div>

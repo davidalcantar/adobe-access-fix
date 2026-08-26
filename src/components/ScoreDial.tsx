@@ -5,13 +5,13 @@ function tone(score: number) {
 }
 
 /**
- * Conformance score ring. The number is always rendered as text so the value
+ * Accessibility Score ring. The number is always rendered as text so the value
  * never depends on colour alone.
  */
 export function ScoreDial({
   score,
   size = 56,
-  label = "Conformance score",
+  label = "Accessibility Score",
 }: {
   score: number;
   size?: number;
